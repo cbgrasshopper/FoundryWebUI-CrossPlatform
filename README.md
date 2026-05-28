@@ -162,7 +162,7 @@ Edit `appsettings.json` (or pass an override file via `--config`):
 
 | | macOS | Windows |
 |---|---|---|
-| Settings (`system-prompts.json`) | `~/Library/Application Support/FoundryWebUI-X/` | `%APPDATA%\FoundryWebUI-X\` |
+| Settings (`system-prompts.json`) | `~/Library/Application Support/FoundryWebUI-X/` | `%LOCALAPPDATA%\FoundryWebUI-X\` |
 | Logs (`app-YYYYMMDD.log`) | `~/Library/Logs/FoundryWebUI-X/` | `%LOCALAPPDATA%\FoundryWebUI-X\logs\` |
 
 These directories are created on first launch.
