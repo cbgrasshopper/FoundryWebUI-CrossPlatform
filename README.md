@@ -85,7 +85,7 @@ Example:
 - **Sortable models table** with “Can Run” RAM estimates.
 - **System prompt library** — create, edit, delete reusable prompts.
 - **Logs page** — single **Foundry Local** tab (reads Foundry's log dir cross-platform).
-- **Auto-discovery** of the Foundry Local endpoint via local port scan.
+- **Auto-discovery** of the Foundry Local endpoint by reading Foundry's own log files.
 - **REST-only** — no CLI dependency; uses Foundry Local REST APIs directly.
 - **Dark theme** Bootstrap 5 UI.
 
@@ -154,7 +154,7 @@ Edit `appsettings.json` (or pass an override file via `--config`):
 
 | Setting | Default | Notes |
 |---|---|---|
-| `LlmProviders:Foundry:Endpoint` | *(blank — auto-detect)* | Set to `http://localhost:5273` to skip port scanning. |
+| `LlmProviders:Foundry:Endpoint` | *(blank — auto-detect)* | Set explicitly (e.g. `http://127.0.0.1:65274`) to skip auto-discovery. |
 | `Foundry:ExecutablePath` | *(blank — discovered)* | Absolute path to the `foundry` binary. |
 | `FOUNDRYWEBUI_NO_BROWSER` (env) | *(unset)* | If `1`, suppress browser auto-launch. |
 
@@ -222,7 +222,7 @@ dotnet publish FoundryWebUI-X.csproj -c Release -r win-x64 `
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Foundry status indicator is red | Foundry Local not running | `foundry service start`, then click 🔄 Reconnect |
-| No models listed | Auto-discovery failed | Set `LlmProviders:Foundry:Endpoint` explicitly |
+| No models listed | Endpoint discovery failed | Check `~/.foundry/logs/` for a `Now listening on:` line; set `LlmProviders:Foundry:Endpoint` explicitly |
 | Browser doesn't open | Headless terminal / `--no-browser` set | Open `http://127.0.0.1:5207/` manually |
 | Port 5207 already in use | Conflicting local service | Pass `--port 8080` (or any free port) |
 | `dotnet` not found | .NET 10 SDK not installed | Install from <https://dotnet.microsoft.com/download/dotnet/10.0> |
