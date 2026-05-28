@@ -53,7 +53,7 @@ Decisions captured here override anything in the legacy `README.md` /
 | Project file | `FoundryWebUI-X.csproj` |
 | `<AssemblyName>` | `FoundryWebUI-X` |
 | `<RootNamespace>` | `FoundryWebUI` (kept to minimize diff churn) |
-| Code namespaces | `FoundryWebUI`, `FoundryWebUI.Services`, `FoundryWebUI.Controllers`, `FoundryWebUI.Models` |
+| Code namespaces | `FoundryWebUI`, `FoundryWebUI.Services`, `FoundryWebUI.Endpoints`, `FoundryWebUI.Models` |
 | User config directory (macOS) | `~/Library/Application Support/FoundryWebUI-X/` |
 | User config directory (Windows) | `%LOCALAPPDATA%\FoundryWebUI-X\` |
 
@@ -137,8 +137,9 @@ Replace the existing minimal hosting with:
   - macOS: `Process.Start("open", url)`
   - Suppressed when `--no-browser` is passed or `FOUNDRYWEBUI_NO_BROWSER=1`,
     or when stdin/stdout is redirected (basic test/CI detection).
-- DI registrations carry forward: `FoundryLocalService`, `ILlmProvider`,
-  `SystemPromptStore`. `InMemoryLoggerProvider` is removed.
+- DI registrations carry forward: `FoundryLocalService`, sub-services
+  (`EndpointDiscoveryService`, `ModelCatalogService`, `ChatStreamingService`,
+  `ModelDownloadService`, `ModelDeletionService`), `SystemPromptStore`.
 
 ### appsettings.json
 
@@ -181,7 +182,7 @@ for grouping; old key is *not* migrated (clean fork).
 - Port probing already cross-platform; keep as-is.
 - Add a `static class FoundryExecutable` helper (moved out of the controller).
 
-### 5.2 `Controllers/ApiController.cs`
+### 5.2 `Endpoints/` (Minimal API groups, replacing `Controllers/ApiController.cs`)
 
 - Drop `GetEventLogEntries` and the `eventlog` case in `/api/logs/{source}`.
 - Replace `GetIisStdoutLogs` with `GetStdoutLogs` reading from the new Serilog
@@ -275,7 +276,7 @@ Deleted. Replaced by a Serilog in-memory sink read via a small
 - **Add** tab: *App stdout* (reads Serilog rolling file).
 - **Keep** tab: *Foundry Local logs* (file-based, cross-platform discovery).
 
-Each tab continues to support filter + search + line-count selection.
+Each tab continues to support filter + search + line-count selection. (The shipped implementation collapsed this to a single "Foundry Local" tab for simplicity.)
 
 ---
 
@@ -353,18 +354,33 @@ FoundryWebUI-X/
 ├── .gitignore
 ├── LICENSE.txt                  (MIT, unchanged)
 ├── README.md                    (rewritten)
-├── cross_platform_migration_implementation_plan.md  (this file)
-├── Controllers/
+├── docs/planning/
+│   └── cross_platform_migration_implementation_plan.md  (this file)
+├── Endpoints/
+│   ├── StatusEndpoints.cs
+│   ├── ModelsEndpoints.cs
+│   ├── ChatEndpoints.cs
+│   ├── LogsEndpoints.cs
+│   ├── SettingsEndpoints.cs
+│   ├── SystemPromptsEndpoints.cs
+│   └── EndpointRegistry.cs
 ├── Models/
 ├── Pages/
 ├── Properties/
+├── docs/
+│   └── planning/
+│       └── cross_platform_migration_implementation_plan.md  (this file)
 ├── Services/
 │   ├── Platform/
 │   │   ├── FoundryExecutable.cs
 │   │   ├── UserPaths.cs
 │   │   └── BrowserLauncher.cs
 │   ├── FoundryLocalService.cs
-│   ├── ILlmProvider.cs
+│   ├── EndpointDiscoveryService.cs
+│   ├── ModelCatalogService.cs
+│   ├── ChatStreamingService.cs
+│   ├── ModelDownloadService.cs
+│   ├── ModelDeletionService.cs
 │   └── SystemPromptStore.cs
 ├── wwwroot/
 ├── scripts/
@@ -436,7 +452,7 @@ Per <https://tunit.dev/docs/getting-started/installation>:
 - `SystemPromptStore` — CRUD + JSON persistence in the per-user dir
   (tests redirect via `UserPaths` test seam).
 - Serilog in-memory sink — ring-buffer ordering and bounded size.
-- `ApiController` — all routes via `WebApplicationFactory`.
+- `Endpoints` — all routes via `WebApplicationFactory`.
 - `FoundryExecutable.Resolve` and `UserPaths` — platform branches via
   injectable platform detection.
 - Playwright smoke set:
@@ -445,7 +461,7 @@ Per <https://tunit.dev/docs/getting-started/installation>:
   - Models: list renders → "Download" triggers SSE progress UI → "Remove"
     succeeds.
   - Settings: cache-directory PUT round-trips; system-prompts CRUD round-trips.
-  - Logs: *Application logs* and *Foundry Local logs* tabs populate; EventLog
+  - Logs: *Foundry Local logs* tab populates; EventLog
     and IIS tabs are absent from the DOM.
 
 ### Coverage collection

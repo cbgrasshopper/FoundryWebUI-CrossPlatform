@@ -109,8 +109,8 @@ Example:
 |---|---|
 | **Kestrel** | HTTP host, bound to loopback by default. No reverse proxy. |
 | **Razor Pages** | `/` (Chat), `/Models`, `/Logs`, `/Settings` |
-| **`ApiController`** | REST + SSE endpoints under `/api/` |
-| **`FoundryLocalService`** | Adapter for the Foundry Local REST API |
+| **`Endpoints/`** | Minimal API endpoint groups under `/api/` (7 files) |
+| **Sub-services** | `EndpointDiscoveryService`, `ModelCatalogService`, `ChatStreamingService`, `ModelDownloadService`, `ModelDeletionService` — each wraps one Foundry REST surface |
 | **`SystemPromptStore`** | JSON-backed prompt library in the per-user config dir |
 | **Serilog** | Console + rolling-file + bounded in-memory sinks |
 | **`BrowserLauncher`** | Cross-platform browser opener (`open` / `cmd /c start`) |
@@ -121,19 +121,23 @@ Example:
 |---|---|---|
 | `GET` | `/api/status` | Provider health check |
 | `GET` | `/api/system-info` | System RAM info (for "Can Run") |
+| `POST` | `/api/reconnect` | Re-discover Foundry Local endpoint |
+| `POST` | `/api/foundry/start` | Start Foundry Local service |
 | `GET` | `/api/models` | List models (catalog + loaded) |
 | `GET` | `/api/models/loaded` | List currently loaded models |
-| `POST` | `/api/chat?provider=foundry` | Streaming chat (SSE) |
 | `POST` | `/api/models/download` | Download a model (SSE progress) |
-| `DELETE` | `/api/models/{id}` | Remove a cached model |
-| `POST` | `/api/reconnect` | Re-discover Foundry Local endpoint |
-| `GET` | `/api/logs/app` | In-memory application logs |
-| `GET` | `/api/logs/stdout` | Rolling app log file (own stdout) |
-| `GET` | `/api/logs/foundry` | Foundry Local log files |
+| `DELETE` | `/api/models/{*modelId}` | Remove a cached model |
+| `POST` | `/api/chat` | Streaming chat (SSE) |
+| `GET` | `/api/logs/{source}` | Log entries (`source = foundry`) |
 | `GET` | `/api/system-prompts` | List system prompts |
+| `GET` | `/api/system-prompts/{id}` | Get a single system prompt |
 | `POST` | `/api/system-prompts` | Create a prompt |
 | `PUT` | `/api/system-prompts/{id}` | Update a prompt |
+| `PUT` | `/api/system-prompts/{id}/default` | Set a prompt as default |
 | `DELETE` | `/api/system-prompts/{id}` | Delete a prompt |
+| `GET` | `/api/settings/cache-directory` | Get Foundry cache directory path |
+| `PUT` | `/api/settings/cache-directory` | Update Foundry cache directory |
+| `GET` | `/api/settings/foundry-info` | Foundry binary location info |
 
 ## Configuration
 

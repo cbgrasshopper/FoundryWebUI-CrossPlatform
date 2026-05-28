@@ -7,7 +7,7 @@ using FoundryWebUI.IntegrationTests.Helpers;
 
 namespace FoundryWebUI.IntegrationTests;
 
-public class ApiControllerTests
+public class EndpointTests
 {
     [Test]
     public async Task SystemInfo_ReturnsTotalRam()
