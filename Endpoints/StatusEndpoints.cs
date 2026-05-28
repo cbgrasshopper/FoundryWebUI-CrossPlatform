@@ -1,6 +1,5 @@
 using System.Diagnostics;
 
-using FoundryWebUI.Models;
 using FoundryWebUI.Services;
 using FoundryWebUI.Services.Platform;
 
@@ -29,32 +28,23 @@ public static class StatusEndpoints
         });
     }
 
-    private static async Task<IResult> GetStatus(IEnumerable<ILlmProvider> providers)
+    private static async Task<IResult> GetStatus(FoundryLocalService provider)
     {
-        var tasks = providers.Select(p => p.GetStatusAsync());
-        var statuses = await Task.WhenAll(tasks);
-        return Results.Ok(statuses);
+        var status = await provider.GetStatusAsync();
+        return Results.Ok(new[] { status });
     }
 
     private static async Task<IResult> Reconnect(
-        IEnumerable<ILlmProvider> providers,
-        string provider = "foundry")
+        FoundryLocalService provider)
     {
-        var p = providers.FirstOrDefault(pr =>
-            pr.ProviderName.Equals(provider, StringComparison.OrdinalIgnoreCase));
-        if (p is null)
-        {
-            return Results.NotFound(new { error = $"Provider '{provider}' not found" });
-        }
-
-        var status = await p.ReconnectAsync();
+        var status = await provider.ReconnectAsync();
         return Results.Ok(status);
     }
 
     private static async Task<IResult> StartFoundry(
         IConfiguration configuration,
         ILogger<Program> logger,
-        IEnumerable<ILlmProvider> providers,
+        FoundryLocalService provider,
         CancellationToken cancellationToken)
     {
         if (!FoundryExecutable.TryFind(configuration, out var exePath))
@@ -96,27 +86,12 @@ public static class StatusEndpoints
                 "foundry service start exited {Code}. stdout: {Stdout} stderr: {Stderr}",
                 proc.ExitCode, stdout.Trim(), stderr.Trim());
 
-            var foundry = providers.FirstOrDefault(pr =>
-                pr.ProviderName.Equals("foundry", StringComparison.OrdinalIgnoreCase));
-            ProviderStatus status;
-            if (foundry is null)
+            var status = await provider.ReconnectAsync();
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+            while (!status.IsAvailable && DateTimeOffset.UtcNow < deadline)
             {
-                status = new ProviderStatus
-                {
-                    Provider = "foundry",
-                    IsAvailable = false,
-                    Error = "Foundry provider not registered.",
-                };
-            }
-            else
-            {
-                status = await foundry.ReconnectAsync();
-                var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
-                while (!status.IsAvailable && DateTimeOffset.UtcNow < deadline)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
-                    status = await foundry.GetStatusAsync();
-                }
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                status = await provider.GetStatusAsync();
             }
 
             return Results.Ok(new

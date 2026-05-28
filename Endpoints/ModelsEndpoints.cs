@@ -21,94 +21,83 @@ public static class ModelsEndpoints
     }
 
     private static async Task<IResult> GetModels(
-        IEnumerable<ILlmProvider> providers,
-        ILogger<Program> logger,
-        string? provider = null)
+        FoundryLocalService provider,
+        ILogger<Program> logger)
     {
         var allModels = new List<ModelInfo>();
 
-        var filtered = provider is not null
-            ? providers.Where(p => p.ProviderName.Equals(provider, StringComparison.OrdinalIgnoreCase))
-            : providers;
-
-        foreach (var p in filtered)
+        try
         {
-            try
+            var loaded = await provider.GetLoadedModelsAsync();
+            var available = await provider.GetAvailableModelsAsync();
+
+            var catalogById = new Dictionary<string, ModelInfo>(StringComparer.OrdinalIgnoreCase);
+            foreach (var m in available)
             {
-                var loaded = await p.GetLoadedModelsAsync();
-                var available = await p.GetAvailableModelsAsync();
+                catalogById.TryAdd(m.Id, m);
+            }
 
-                var catalogById = new Dictionary<string, ModelInfo>(StringComparer.OrdinalIgnoreCase);
-                foreach (var m in available)
+            var loadedIds = new HashSet<string>(loaded.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
+            foreach (var m in loaded)
+            {
+                if (!catalogById.TryGetValue(m.Id, out var catModel))
                 {
-                    catalogById.TryAdd(m.Id, m);
+                    var idWithoutVersion = m.Id.Contains(':') ? m.Id[..m.Id.LastIndexOf(':')] : m.Id;
+                    catModel = available.FirstOrDefault(a =>
+                        string.Equals(a.Name, idWithoutVersion, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(a.Name, m.Id, StringComparison.OrdinalIgnoreCase));
                 }
-
-                var loadedIds = new HashSet<string>(loaded.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
-                foreach (var m in loaded)
+                if (catModel is not null)
                 {
-                    if (!catalogById.TryGetValue(m.Id, out var catModel))
+                    m.Size ??= catModel.Size;
+                    m.EstimatedRamMb ??= catModel.EstimatedRamMb;
+                    m.Description ??= catModel.Description;
+                    m.Family ??= catModel.Family;
+                    m.ParameterSize ??= catModel.ParameterSize;
+                    m.Capabilities ??= catModel.Capabilities;
+                    m.ContextWindow ??= catModel.ContextWindow;
+                    if (string.IsNullOrEmpty(m.Name) || m.Name == m.Id)
                     {
-                        var idWithoutVersion = m.Id.Contains(':') ? m.Id[..m.Id.LastIndexOf(':')] : m.Id;
-                        catModel = available.FirstOrDefault(a =>
-                            string.Equals(a.Name, idWithoutVersion, StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(a.Name, m.Id, StringComparison.OrdinalIgnoreCase));
-                    }
-                    if (catModel is not null)
-                    {
-                        m.Size ??= catModel.Size;
-                        m.EstimatedRamMb ??= catModel.EstimatedRamMb;
-                        m.Description ??= catModel.Description;
-                        m.Family ??= catModel.Family;
-                        m.ParameterSize ??= catModel.ParameterSize;
-                        m.Capabilities ??= catModel.Capabilities;
-                        m.ContextWindow ??= catModel.ContextWindow;
-                        if (string.IsNullOrEmpty(m.Name) || m.Name == m.Id)
-                        {
-                            m.Name = catModel.Name;
-                        }
+                        m.Name = catModel.Name;
                     }
                 }
-                allModels.AddRange(loaded);
-                allModels.AddRange(available.Where(m => !loadedIds.Contains(m.Id)));
-                logger.LogInformation(
-                    "Models: {Loaded} loaded/downloaded, {Available} in catalog, {Total} total after merge",
-                    loaded.Count,
-                    available.Count,
-                    allModels.Count);
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to get models from {Provider}", p.ProviderName);
-            }
+            allModels.AddRange(loaded);
+            allModels.AddRange(available.Where(m => !loadedIds.Contains(m.Id)));
+            logger.LogInformation(
+                "Models: {Loaded} loaded/downloaded, {Available} in catalog, {Total} total after merge",
+                loaded.Count,
+                available.Count,
+                allModels.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to get models from provider");
         }
 
         return Results.Ok(allModels);
     }
 
     private static async Task<IResult> GetLoadedModels(
-        IEnumerable<ILlmProvider> providers,
+        FoundryLocalService provider,
         ILogger<Program> logger)
     {
-        var allModels = new List<ModelInfo>();
-        foreach (var p in providers)
+        try
         {
-            try
-            {
-                allModels.AddRange(await p.GetLoadedModelsAsync());
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to get loaded models from {Provider}", p.ProviderName);
-            }
+            var models = await provider.GetLoadedModelsAsync();
+            return Results.Ok(models);
         }
-        return Results.Ok(allModels);
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to get loaded models");
+            return Results.Ok(new List<ModelInfo>());
+        }
     }
 
     private static async Task DownloadModel(
         HttpContext context,
         DownloadRequest request,
-        IEnumerable<ILlmProvider> providers,
+        FoundryLocalService provider,
         ILogger<Program> logger)
     {
         context.Response.ContentType = "text/event-stream";
@@ -116,20 +105,9 @@ public static class ModelsEndpoints
         context.Response.Headers.Connection = "keep-alive";
         context.Response.Headers["X-Accel-Buffering"] = "no";
 
-        var p = providers.FirstOrDefault(pr =>
-            pr.ProviderName.Equals(request.Provider, StringComparison.OrdinalIgnoreCase));
-        if (p is null)
-        {
-            await WriteSSE(context, "error", JsonSerializer.Serialize(new
-            {
-                error = $"Provider '{request.Provider}' not found",
-            }));
-            return;
-        }
-
         try
         {
-            await foreach (var progress in p.DownloadModelAsync(request.ModelId, context.RequestAborted))
+            await foreach (var progress in provider.DownloadModelAsync(request.ModelId, context.RequestAborted))
             {
                 var json = JsonSerializer.Serialize(progress, JsonOptions);
                 await WriteSSE(context, "progress", json);
@@ -144,23 +122,15 @@ public static class ModelsEndpoints
 
     private static async Task<IResult> DeleteModel(
         string modelId,
-        IEnumerable<ILlmProvider> providers,
-        ILogger<Program> logger,
-        string provider = "foundry")
+        FoundryLocalService provider,
+        ILogger<Program> logger)
     {
         modelId = Uri.UnescapeDataString(modelId);
         logger.LogInformation("Delete request for model: {ModelId}", modelId);
 
-        var p = providers.FirstOrDefault(pr =>
-            pr.ProviderName.Equals(provider, StringComparison.OrdinalIgnoreCase));
-        if (p is null)
-        {
-            return Results.NotFound(new { error = $"Provider '{provider}' not found" });
-        }
-
         try
         {
-            var success = await p.DeleteModelAsync(modelId, default);
+            var success = await provider.DeleteModelAsync(modelId, default);
             return success
                 ? Results.Ok(new { message = $"Model '{modelId}' removed successfully" })
                 : Results.Json(

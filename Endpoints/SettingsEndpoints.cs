@@ -19,14 +19,8 @@ public static class SettingsEndpoints
         app.MapGet("/api/settings/foundry-info", GetFoundryInfo);
     }
 
-    private static async Task<IResult> GetCacheDirectory(IEnumerable<ILlmProvider> providers)
+    private static async Task<IResult> GetCacheDirectory(FoundryLocalService provider)
     {
-        if (providers.FirstOrDefault(p =>
-                p.ProviderName.Equals("foundry", StringComparison.OrdinalIgnoreCase)) is not FoundryLocalService provider)
-        {
-            return Results.Json(new { error = "Foundry Local provider not available" }, statusCode: 503);
-        }
-
         var path = await provider.GetCacheDirectoryAsync();
         return Results.Ok(new { path = path ?? "", detected = path is not null });
     }
@@ -40,7 +34,6 @@ public static class SettingsEndpoints
 
     private static async Task<IResult> SetCacheDirectory(
         CacheDirectoryRequest request,
-        IEnumerable<ILlmProvider> providers,
         ILogger<Program> logger)
     {
         if (string.IsNullOrWhiteSpace(request.Path))

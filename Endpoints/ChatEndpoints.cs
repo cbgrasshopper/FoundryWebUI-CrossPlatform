@@ -20,30 +20,17 @@ public static class ChatEndpoints
     private static async Task Chat(
         HttpContext context,
         ChatRequest request,
-        IEnumerable<ILlmProvider> providers,
-        ILogger<Program> logger,
-        string provider = "foundry")
+        FoundryLocalService provider,
+        ILogger<Program> logger)
     {
         context.Response.ContentType = "text/event-stream";
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
         context.Response.Headers["X-Accel-Buffering"] = "no";
 
-        var p = providers.FirstOrDefault(pr =>
-            pr.ProviderName.Equals(provider, StringComparison.OrdinalIgnoreCase));
-        if (p is null)
-        {
-            await WriteSSE(context, "message", JsonSerializer.Serialize(new
-            {
-                content = $"⚠️ Provider '{provider}' not found",
-                done = true,
-            }));
-            return;
-        }
-
         try
         {
-            await foreach (var chunk in p.StreamChatAsync(request, context.RequestAborted))
+            await foreach (var chunk in provider.StreamChatAsync(request, context.RequestAborted))
             {
                 var json = JsonSerializer.Serialize(chunk, JsonOptions);
                 await WriteSSE(context, "message", json);
@@ -54,7 +41,7 @@ public static class ChatEndpoints
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Chat error with provider {Provider}", provider);
+            logger.LogError(ex, "Chat error");
             await WriteSSE(context, "message", JsonSerializer.Serialize(new
             {
                 content = $"\n\n⚠️ Error: {ex.Message}",

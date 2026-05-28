@@ -173,7 +173,6 @@ public sealed class Program
         builder.Services.AddSingleton<ModelDownloadService>();
         builder.Services.AddSingleton<ModelDeletionService>();
         builder.Services.AddSingleton<FoundryLocalService>();
-        builder.Services.AddSingleton<ILlmProvider>(sp => sp.GetRequiredService<FoundryLocalService>());
 
         builder.Services.AddSingleton<ContextWindowLookup>();
         builder.Services.AddSingleton<SystemPromptStore>();
