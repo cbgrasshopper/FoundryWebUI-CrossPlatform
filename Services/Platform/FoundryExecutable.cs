@@ -83,28 +83,27 @@ public static class FoundryExecutable
             yield return Path.Combine(localAppData, "Programs", "FoundryLocal", exeName);
 
             // WinGet MSIX install — search known WindowsApps subdirectories as a last resort.
-            string? winApps = null;
-            try
+            var winApps = Path.Combine(programFiles, "WindowsApps");
+            if (Directory.Exists(winApps))
             {
-                winApps = Path.Combine(programFiles, "WindowsApps");
-                if (Directory.Exists(winApps))
+                string[] dirs;
+                try
                 {
-                    foreach (var dir in Directory.GetDirectories(winApps, "Microsoft.FoundryLocal_*")
-                                                  .OrderByDescending(d => d))
+                    dirs = Directory.GetDirectories(winApps, "Microsoft.FoundryLocal_*");
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    yield break;
+                }
+
+                foreach (var dir in dirs.OrderByDescending(d => d))
+                {
+                    var exe = Path.Combine(dir, exeName);
+                    if (File.Exists(exe))
                     {
-                        var exe = Path.Combine(dir, exeName);
-                        if (File.Exists(exe))
-                        {
-                            yield return exe;
-                        }
+                        yield return exe;
                     }
                 }
-            }
-            finally
-            {
-                // WindowsApps may be access-restricted; failure here is silently swallowed
-                // by virtue of the try block never having anything thrown out of it.
-                _ = winApps;
             }
         }
     }
