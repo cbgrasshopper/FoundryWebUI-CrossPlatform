@@ -1,8 +1,10 @@
 using System.Text.Json;
 
+using FoundryWebUI.Services.Platform;
+
 namespace FoundryWebUI.Services;
 
-public class SystemPrompt
+public sealed class SystemPrompt
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     public string Name { get; set; } = string.Empty;
@@ -12,22 +14,29 @@ public class SystemPrompt
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
-public class SystemPromptStore
+public sealed class SystemPromptStore
 {
     private readonly string _filePath;
     private readonly ILogger<SystemPromptStore> _logger;
-    private List<SystemPrompt> _prompts = new();
-    private readonly object _lock = new();
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    private readonly Lock _lock = new();
+    private List<SystemPrompt> _prompts = [];
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public SystemPromptStore(IWebHostEnvironment env, ILogger<SystemPromptStore> logger)
+    public SystemPromptStore(ILogger<SystemPromptStore> logger)
+        : this(UserPaths.SystemPromptsFile, logger)
+    {
+    }
+
+    /// <summary>Test seam: caller supplies the file path explicitly.</summary>
+    public SystemPromptStore(string filePath, ILogger<SystemPromptStore> logger)
     {
         _logger = logger;
-        _filePath = Path.Combine(env.ContentRootPath, "system-prompts.json");
+        _filePath = filePath;
         Load();
     }
 
@@ -40,16 +49,15 @@ public class SystemPromptStore
                 try
                 {
                     var json = File.ReadAllText(_filePath);
-                    _prompts = JsonSerializer.Deserialize<List<SystemPrompt>>(json, _jsonOptions) ?? new();
+                    _prompts = JsonSerializer.Deserialize<List<SystemPrompt>>(json, JsonOptions) ?? [];
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to load system prompts from {Path}", _filePath);
-                    _prompts = new();
+                    _prompts = [];
                 }
             }
 
-            // Ensure there's always a default prompt
             if (_prompts.Count == 0)
             {
                 _prompts.Add(new SystemPrompt
@@ -57,12 +65,11 @@ public class SystemPromptStore
                     Id = "default",
                     Name = "Default",
                     Content = "You are a helpful AI assistant.",
-                    IsDefault = true
+                    IsDefault = true,
                 });
                 Save();
             }
 
-            // Ensure exactly one default
             if (!_prompts.Any(p => p.IsDefault))
             {
                 _prompts[0].IsDefault = true;
@@ -75,7 +82,13 @@ public class SystemPromptStore
     {
         try
         {
-            var json = JsonSerializer.Serialize(_prompts, _jsonOptions);
+            var dir = Path.GetDirectoryName(_filePath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            var json = JsonSerializer.Serialize(_prompts, JsonOptions);
             File.WriteAllText(_filePath, json);
         }
         catch (Exception ex)
@@ -86,17 +99,26 @@ public class SystemPromptStore
 
     public List<SystemPrompt> GetAll()
     {
-        lock (_lock) { return _prompts.ToList(); }
+        lock (_lock)
+        {
+            return [.. _prompts];
+        }
     }
 
     public SystemPrompt? GetById(string id)
     {
-        lock (_lock) { return _prompts.FirstOrDefault(p => p.Id == id); }
+        lock (_lock)
+        {
+            return _prompts.FirstOrDefault(p => p.Id == id);
+        }
     }
 
     public SystemPrompt? GetDefault()
     {
-        lock (_lock) { return _prompts.FirstOrDefault(p => p.IsDefault) ?? _prompts.FirstOrDefault(); }
+        lock (_lock)
+        {
+            return _prompts.FirstOrDefault(p => p.IsDefault) ?? _prompts.FirstOrDefault();
+        }
     }
 
     public SystemPrompt Add(string name, string content)
@@ -107,7 +129,7 @@ public class SystemPromptStore
             {
                 Name = name,
                 Content = content,
-                IsDefault = _prompts.Count == 0
+                IsDefault = _prompts.Count == 0,
             };
             _prompts.Add(prompt);
             Save();
@@ -120,7 +142,10 @@ public class SystemPromptStore
         lock (_lock)
         {
             var prompt = _prompts.FirstOrDefault(p => p.Id == id);
-            if (prompt == null) return null;
+            if (prompt is null)
+            {
+                return null;
+            }
             prompt.Name = name;
             prompt.Content = content;
             prompt.UpdatedAt = DateTime.UtcNow;
@@ -134,11 +159,16 @@ public class SystemPromptStore
         lock (_lock)
         {
             var prompt = _prompts.FirstOrDefault(p => p.Id == id);
-            if (prompt == null) return false;
+            if (prompt is null)
+            {
+                return false;
+            }
             var wasDefault = prompt.IsDefault;
             _prompts.Remove(prompt);
             if (wasDefault && _prompts.Count > 0)
+            {
                 _prompts[0].IsDefault = true;
+            }
             Save();
             return true;
         }
@@ -149,8 +179,14 @@ public class SystemPromptStore
         lock (_lock)
         {
             var prompt = _prompts.FirstOrDefault(p => p.Id == id);
-            if (prompt == null) return false;
-            foreach (var p in _prompts) p.IsDefault = false;
+            if (prompt is null)
+            {
+                return false;
+            }
+            foreach (var p in _prompts)
+            {
+                p.IsDefault = false;
+            }
             prompt.IsDefault = true;
             Save();
             return true;

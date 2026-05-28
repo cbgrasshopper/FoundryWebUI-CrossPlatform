@@ -37,6 +37,8 @@ public class ModelInfo
     public string? Family { get; set; }
     public double? EstimatedRamMb { get; set; }
     public int? MaxOutputTokens { get; set; }
+    public int? ContextWindow { get; set; }
+    public List<string>? Capabilities { get; set; }
 }
 
 public class DownloadRequest
