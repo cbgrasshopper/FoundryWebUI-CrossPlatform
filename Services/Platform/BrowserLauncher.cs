@@ -12,30 +12,29 @@ namespace FoundryWebUI.Services.Platform;
 ///   * <c>FOUNDRYWEBUI_NO_BROWSER=1</c> env var is set
 ///   * <c>ASPNETCORE_ENVIRONMENT</c> equals <c>Test</c> or stdout is redirected
 /// </summary>
-public sealed class BrowserLauncher : IHostedLifecycleService
+public sealed class BrowserLauncher : IHostedService
 {
     private readonly IServer _server;
     private readonly IHostEnvironment _env;
     private readonly ILogger<BrowserLauncher> _logger;
     private readonly Options _options;
+    private readonly IHostApplicationLifetime _appLifetime;
 
     public BrowserLauncher(
         IServer server,
         IHostEnvironment env,
         ILogger<BrowserLauncher> logger,
-        Options options)
+        Options options,
+        IHostApplicationLifetime appLifetime)
     {
         _server = server;
         _env = env;
         _logger = logger;
         _options = options;
+        _appLifetime = appLifetime;
     }
 
-    public Task StartingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-    public Task StartedAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
         if (!ShouldLaunch())
         {
@@ -43,23 +42,24 @@ public sealed class BrowserLauncher : IHostedLifecycleService
             return Task.CompletedTask;
         }
 
+        _ = _appLifetime.ApplicationStarted.Register(OnApplicationStarted);
+        return Task.CompletedTask;
+    }
+
+    private void OnApplicationStarted()
+    {
         var addresses = _server.Features.Get<IServerAddressesFeature>()?.Addresses;
         var url = addresses?.FirstOrDefault();
         if (string.IsNullOrEmpty(url))
         {
             _logger.LogWarning("No server addresses reported; cannot auto-launch browser.");
-            return Task.CompletedTask;
+            return;
         }
 
         TryOpen(url);
-        return Task.CompletedTask;
     }
 
-    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private bool ShouldLaunch()
     {
