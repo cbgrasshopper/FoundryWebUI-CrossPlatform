@@ -1,0 +1,28 @@
+<Project>
+
+  <!--
+    Shared MSBuild defaults for all test projects.
+    TUnit deliberately replaces VSTest. Do NOT install any of the following
+    in test projects:
+      Microsoft.NET.Test.Sdk, xunit, nunit, MSTest,
+      coverlet.collector, coverlet.msbuild.
+    Coverage is bundled via Microsoft.Testing.Extensions.CodeCoverage
+    (run with `dotnet run -.- coverage`).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <NoWarn>$(NoWarn);CS1591;CS8424;CA1707;CA2007</NoWarn>
+
+    <DOTNET_CLI_TELEMETRY_OPTOUT>1</DOTNET_CLI_TELEMETRY_OPTOUT>
+  </PropertyGroup>
+
+</Project>
