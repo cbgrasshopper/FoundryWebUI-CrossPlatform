@@ -20,6 +20,10 @@ public sealed class EndpointDiscoveryService : IDisposable
         @"https?://[^\s/]+(?=/openai/status)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex ListeningOnRegex = new(
+        @"Now listening on: http://127\.0\.0\.1:(\d+)",
+        RegexOptions.Compiled | RegexOptions.Multiline);
+
     public HttpClient HttpClient => _httpClient;
 
     public EndpointDiscoveryService(
@@ -61,15 +65,13 @@ public sealed class EndpointDiscoveryService : IDisposable
             }
         }
 
-        foreach (var port in new[] { 5272, 5273, 5274 })
+        var logPort = await TryGetPortFromLogsAsync();
+        if (logPort.HasValue && await ProbePortAsync(logPort.Value))
         {
-            if (await ProbePortAsync(port))
-            {
-                _cachedEndpoint = $"http://localhost:{port}";
-                await PersistEndpointAsync(_cachedEndpoint);
-                _logger.LogInformation("Discovered Foundry Local at {Endpoint} via port scan", _cachedEndpoint);
-                return _cachedEndpoint;
-            }
+            _cachedEndpoint = $"http://localhost:{logPort.Value}";
+            await PersistEndpointAsync(_cachedEndpoint);
+            _logger.LogInformation("Discovered Foundry Local at {Endpoint} via log file", _cachedEndpoint);
+            return _cachedEndpoint;
         }
 
         await _endpointDiscoveryLock.WaitAsync();
@@ -214,6 +216,37 @@ public sealed class EndpointDiscoveryService : IDisposable
             _logger.LogDebug(ex, "CLI-based Foundry discovery failed");
             return (null, false);
         }
+    }
+
+    private static async Task<int?> TryGetPortFromLogsAsync()
+    {
+        var logDir = UserPaths.FoundryLogsDir;
+        if (!Directory.Exists(logDir))
+            return null;
+
+        var logFile = Directory.GetFiles(logDir, "foundry*.log")
+            .MaxBy(f => f);
+        if (logFile is null)
+            return null;
+
+        try
+        {
+            // Daily-rotated logs are typically < 100 KB, so reading the whole file is fine.
+            // Use FileShare.ReadWrite since Foundry may still be appending to the file.
+            await using var fs = new FileStream(logFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var sr = new StreamReader(fs);
+            var text = await sr.ReadToEndAsync();
+            var match = ListeningOnRegex.Match(text);
+            if (match.Success && int.TryParse(match.Groups[1].ValueSpan, out var port))
+            {
+                return port;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
     }
 
     private int? TryGetConfiguredPort()
