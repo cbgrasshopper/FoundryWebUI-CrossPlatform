@@ -16,40 +16,80 @@ let currentSort = { key: 'status', dir: 'asc' };
 function formatSize(bytes) {
     if (!bytes) return '—';
     const gb = bytes / (1024 * 1024 * 1024);
-    if (gb >= 1) return `${gb.toFixed(1)} GB`;
+    if (gb >= 1) return `${gb.toFixed(1)}&nbsp;GB`;
     const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(0)} MB`;
+    return `${mb.toFixed(0)}&nbsp;MB`;
+}
+
+function formatContext(tokens) {
+    if (!tokens) return '—';
+    if (tokens >= 1048576) return `${(tokens / 1048576).toFixed(0)}M`;
+    if (tokens >= 1024) return `${(tokens / 1024).toFixed(0)}K`;
+    return tokens.toLocaleString();
 }
 
 function formatRam(mb) {
     if (!mb) return '—';
-    if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
-    return `${Math.round(mb)} MB`;
+    if (mb >= 1024) return `${(mb / 1024).toFixed(1)}&nbsp;GB`;
+    return `${Math.round(mb)}&nbsp;MB`;
 }
 
 function canRunBadge(estimatedRamMb) {
-    if (!estimatedRamMb || !systemRamMb) return '<span class="badge bg-secondary">❓ Unknown</span>';
+    if (!estimatedRamMb || !systemRamMb) return '<span class="badge-status badge-muted" title="Unknown">?</span>';
     const ratio = estimatedRamMb / systemRamMb;
-    if (ratio <= 0.5) return '<span class="badge bg-success" title="Comfortable — uses less than 50% of RAM">✅ Yes</span>';
-    if (ratio <= 0.75) return '<span class="badge bg-warning text-dark" title="Maybe — uses 50-75% of RAM">⚠️ Maybe</span>';
-    return '<span class="badge bg-danger" title="Model likely too large for available RAM">❌ No</span>';
+    if (ratio <= 0.5) return '<span class="badge-status badge-success" title="Comfortable — uses less than 50% of RAM">Yes</span>';
+    if (ratio <= 0.75) return '<span class="badge-status badge-warning" title="Maybe — uses 50-75% of RAM">Maybe</span>';
+    return '<span class="badge-status badge-danger" title="Model likely too large for available RAM">No</span>';
 }
 
 function statusBadge(status) {
     const map = {
-        'loaded': 'bg-success',
-        'downloaded': 'bg-info',
-        'available': 'bg-secondary'
+        'loaded': 'badge-success',
+        'downloaded': 'badge-info',
+        'available': 'badge-muted'
     };
     const labels = {
-        'loaded': '🟢 Loaded',
-        'downloaded': '🔵 Downloaded',
-        'available': '⬜ Available'
+        'loaded': 'Loaded',
+        'downloaded': 'Downloaded',
+        'available': 'Available'
     };
-    return `<span class="badge ${map[status] || 'bg-secondary'}">${labels[status] || status || 'unknown'}</span>`;
+    return `<span class="badge-status ${map[status] || 'badge-muted'}">${labels[status] || status || 'unknown'}</span>`;
 }
 
-async function loadModels() {
+// MODELS_CACHE_KEY and MODELS_CACHE_TTL_MS are defined globally in site.js
+
+function loadModelsFromCache() {
+    try {
+        const raw = sessionStorage.getItem(MODELS_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed.timestamp !== 'number') return null;
+        if (Date.now() - parsed.timestamp > MODELS_CACHE_TTL_MS) return null;
+        return parsed;
+    } catch { return null; }
+}
+
+function saveModelsToCache(models, sysRamMb) {
+    try {
+        sessionStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({
+            models,
+            systemRamMb: sysRamMb,
+            timestamp: Date.now(),
+        }));
+    } catch { /* quota / disabled */ }
+}
+
+async function loadModels({ force = false } = {}) {
+    if (!force) {
+        const cached = loadModelsFromCache();
+        if (cached && Array.isArray(cached.models) && cached.models.length > 0) {
+            allModels = cached.models;
+            systemRamMb = cached.systemRamMb ?? systemRamMb;
+            renderModels();
+            return;
+        }
+    }
+
     try {
         // Fetch system info and models in parallel
         const [sysRes, modelsRes] = await Promise.all([
@@ -62,8 +102,17 @@ async function loadModels() {
         }
         allModels = await modelsRes.json();
         renderModels();
+
+        if (Array.isArray(allModels) && allModels.length > 0) {
+            saveModelsToCache(allModels, systemRamMb);
+        } else {
+            // Empty result suggests Foundry Local is unreachable; drop any
+            // stale "Connected" cached status so the navbar re-checks.
+            window.clearProviderCache?.();
+        }
     } catch (err) {
-        modelsTableBody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Error loading models: ${err.message}</td></tr>`;
+        modelsTableBody.innerHTML = `<tr><td colspan="10" class="text-center py-4" style="color: var(--red);">Error loading models: ${err.message}</td></tr>`;
+        window.clearProviderCache?.();
     }
 }
 
@@ -79,7 +128,7 @@ function getSortValue(m, key) {
             return r <= 0.5 ? 0 : r <= 0.75 ? 1 : 2;
         }
         case 'device': return (m.parameterSize || '').toLowerCase();
-        case 'maxTokens': return m.maxOutputTokens || 0;
+        case 'context': return m.contextWindow || 0;
         default: return 0;
     }
 }
@@ -104,37 +153,45 @@ function updateSortIndicators() {
 
 function renderModels() {
     if (allModels.length === 0) {
-        modelsTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No models found. Check Foundry Local connection.</td></tr>';
+        modelsTableBody.innerHTML = '<tr><td colspan="10" class="text-center py-4" style="color: var(--text-tertiary);">No models found. Check Foundry Local connection.</td></tr>';
         return;
     }
 
     const sorted = sortModels(allModels);
     updateSortIndicators();
 
+    const NON_CHAT_FAMILIES = ['automatic-speech-recognition'];
+
     modelsTableBody.innerHTML = sorted.map(m => {
         const isAvailable = m.status === 'available';
+        const isChatCapable = !NON_CHAT_FAMILIES.includes((m.family || '').toLowerCase());
         const checkboxId = `chk-${(m.id || '').replace(/[^a-zA-Z0-9]/g, '-')}`;
         return `
         <tr>
             <td>
                 ${isAvailable
-                    ? `<input type="checkbox" class="form-check-input model-checkbox" data-model-id="${m.id}" id="${checkboxId}" />`
+                    ? `<input type="checkbox" class="check-dark model-checkbox" data-model-id="${m.id}" id="${checkboxId}" />`
                     : ''}
             </td>
             <td>
                 <strong>${m.name || m.id}</strong>
-                ${m.description ? `<br><small class="text-muted">${m.description}</small>` : ''}
-                ${m.family ? `<br><span class="badge bg-dark">${m.family}</span>` : ''}
+                ${m.description ? `<br><small class="text-tertiary" style="font-size: 0.78rem;">${m.description}</small>` : ''}
+                ${m.family ? `<br><span class="badge-status badge-muted" style="margin-top: 2px;">${m.family}</span>` : ''}
             </td>
             <td>${statusBadge(m.status)}</td>
-            <td>${formatSize(m.size)}</td>
-            <td>${formatRam(m.estimatedRamMb)}</td>
+            <td><div class="caps-cell">${renderCapBadges(m.capabilities)}</div></td>
+            <td class="text-mono">${formatSize(m.size)}</td>
+            <td class="text-mono">${formatRam(m.estimatedRamMb)}</td>
             <td>${canRunBadge(m.estimatedRamMb)}</td>
-            <td>${m.parameterSize || '—'}</td>
-            <td>${m.maxOutputTokens ? m.maxOutputTokens.toLocaleString() : '—'}</td>
+            <td class="text-mono">${m.parameterSize || '—'}</td>
+            <td class="text-mono">${formatContext(m.contextWindow)}</td>
             <td>
-                ${isAvailable ? `<button class="btn btn-sm btn-outline-primary" onclick="downloadModel('${m.id}')">⬇️ Download</button>` : ''}
-                ${m.status === 'downloaded' || m.status === 'loaded' ? `<a href="/" class="btn btn-sm btn-outline-success me-1">💬 Chat</a><button class="btn btn-sm btn-outline-danger" onclick="deleteModel('${m.id}')">🗑️ Remove</button>` : ''}
+                <div class="d-flex gap-sm">
+                ${isChatCapable ? `<button class="btn-ghost" onclick="openChat('${m.id}')">Chat</button>` : ''}
+                ${isAvailable
+                    ? `<button class="btn-ghost" onclick="downloadModel('${m.id}')">Download</button>`
+                    : `<button class="btn-danger-ghost" onclick="deleteModel('${m.id}')">Remove</button>`}
+                </div>
             </td>
         </tr>`;
     }).join('');
@@ -201,15 +258,23 @@ async function downloadSelected() {
 }
 
 async function startDownload(modelId) {
+    downloadBar.style.transition = 'none';
+    downloadBar.style.width = '0%';
+    downloadBar.className = 'progress-fill';
+    downloadBar.offsetWidth;
+    downloadBar.style.transition = '';
     downloadProgress.classList.remove('d-none');
     downloadProgress.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    downloadBar.style.width = '100%';
-    downloadBar.textContent = 'Starting...';
-    downloadBar.classList.remove('bg-danger', 'bg-success');
-    downloadBar.classList.add('progress-bar-animated', 'progress-bar-striped');
     downloadStatus.textContent = 'Connecting to Foundry Local...';
     downloadModelName.textContent = `Downloading ${modelId}...`;
-    let receivedPercent = false;
+    let failed = false;
+
+    const dlBtn = document.querySelector(`.btn-ghost[onclick="downloadModel('${modelId}')"]`);
+    if (dlBtn) {
+        dlBtn.disabled = true;
+        dlBtn.dataset.origText = dlBtn.textContent;
+        dlBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="animation: spin 1s linear infinite;"><path d="M8 0a8 8 0 11-4.947 1.703.75.75 0 01.926-1.18A6.5 6.5 0 108 1.5V.25A.25.25 0 018.25 0H8z"/></svg> Downloading...';
+    }
 
     return new Promise(async (resolve) => {
         try {
@@ -238,71 +303,90 @@ async function startDownload(modelId) {
                             console.log('Download SSE:', data);
 
                             if (data.percent != null && data.percent > 0) {
-                                receivedPercent = true;
                                 downloadBar.style.width = `${data.percent}%`;
-                                downloadBar.textContent = `${Math.round(data.percent)}%`;
                                 if (data.percent >= 100) {
-                                    downloadBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
-                                    downloadBar.classList.add('bg-success');
+                                    downloadBar.className = 'progress-fill success';
                                 }
                             }
 
-                            if (data.status && data.status.startsWith('downloading')) {
-                                downloadStatus.textContent = data.status;
+                            if (data.status && data.status.startsWith('error')) {
+                                failed = true;
+                                downloadBar.style.width = '100%';
+                                downloadBar.className = 'progress-fill error';
+                                downloadStatus.textContent = `Failed: ${data.status}`;
+                            } else if (data.status === 'complete' || data.status === 'success') {
+                                downloadBar.style.width = '100%';
+                                downloadBar.className = 'progress-fill success';
+                                downloadStatus.textContent = `${modelId} downloaded successfully`;
                             } else if (data.status) {
                                 downloadStatus.textContent = data.status;
-                            }
-
-                            if (data.status === 'complete' || data.status === 'success') {
-                                downloadBar.style.width = '100%';
-                                downloadBar.textContent = '100%';
-                                downloadBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
-                                downloadBar.classList.add('bg-success');
-                                downloadStatus.textContent = `✅ ${modelId} downloaded!`;
-                            }
-                            if (data.status && data.status.startsWith('error')) {
-                                downloadBar.classList.add('bg-danger');
-                                downloadBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
-                                downloadStatus.textContent = `❌ Failed: ${data.status}`;
                             }
                         } catch (e) { console.warn('Parse error:', line, e); }
                     }
                 }
             }
         } catch (err) {
-            downloadStatus.textContent = `❌ Error: ${err.message}`;
-            downloadBar.classList.add('bg-danger');
-            downloadBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+            failed = true;
+            downloadStatus.textContent = `Error: ${err.message}`;
+            downloadBar.className = 'progress-fill error';
         }
 
-        // Refresh model list after a short delay to let Foundry register the new model
         await new Promise(r => setTimeout(r, 1000));
-        await loadModels();
-        downloadProgress.classList.add('d-none');
+        await loadModels({ force: true });
+        if (!failed) {
+            downloadProgress.classList.add('d-none');
+        }
         resolve();
     });
 }
 
 // Delete a model
+function showConfirm(message) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('confirm-modal-overlay');
+        const text = document.getElementById('confirm-modal-text');
+        const btnOk = document.getElementById('confirm-modal-ok');
+        const btnCancel = document.getElementById('confirm-modal-cancel');
+        text.textContent = message;
+        overlay.classList.remove('d-none');
+
+        function cleanup(result) {
+            overlay.classList.add('d-none');
+            btnOk.removeEventListener('click', onOk);
+            btnCancel.removeEventListener('click', onCancel);
+            resolve(result);
+        }
+        function onOk() { cleanup(true); }
+        function onCancel() { cleanup(false); }
+        btnOk.addEventListener('click', onOk);
+        btnCancel.addEventListener('click', onCancel);
+    });
+}
+
 async function deleteModel(modelId) {
-    if (!confirm(`Remove model "${modelId}"? This will delete the downloaded model files.`)) return;
+    const confirmed = await showConfirm(`Remove "${modelId}"? This will delete the downloaded model files.`);
+    if (!confirmed) return;
+
+    const rmBtn = document.querySelector(`.btn-danger-ghost[onclick="deleteModel('${modelId}')"]`);
+    if (rmBtn) {
+        rmBtn.disabled = true;
+        rmBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="animation: spin 1s linear infinite;"><path d="M8 0a8 8 0 11-4.947 1.703.75.75 0 01.926-1.18A6.5 6.5 0 108 1.5V.25A.25.25 0 018.25 0H8z"/></svg> Removing...';
+    }
 
     try {
         const res = await fetch(`/api/models/${encodeURIComponent(modelId)}`, { method: 'DELETE' });
         const data = await res.json();
-        if (res.ok) {
-            alert(`✅ ${data.message}`);
-        } else {
-            alert(`❌ ${data.error || 'Failed to remove model'}`);
+        if (!res.ok) {
+            await showConfirm(data.error || 'Failed to remove model');
         }
     } catch (err) {
-        alert(`❌ Error: ${err.message}`);
+        await showConfirm(`Error: ${err.message}`);
     }
-    await loadModels();
+    await loadModels({ force: true });
 }
 
 // Event listeners
-btnRefresh.addEventListener('click', loadModels);
+btnRefresh.addEventListener('click', () => loadModels({ force: true }));
 btnDownloadSelected.addEventListener('click', downloadSelected);
 
 // Column sort handlers
@@ -319,9 +403,14 @@ document.querySelectorAll('th.sortable').forEach(th => {
     });
 });
 
+function openChat(modelId) {
+    window.location.href = `/?selectModel=${encodeURIComponent(modelId)}`;
+}
+
 // Make functions available globally for inline onclick
 window.downloadModel = downloadModel;
 window.deleteModel = deleteModel;
+window.openChat = openChat;
 
 // Init
 loadModels();

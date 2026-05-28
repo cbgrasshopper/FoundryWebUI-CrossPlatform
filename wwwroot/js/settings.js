@@ -17,6 +17,22 @@ let editingId = null;
 let promptModal = null;
 let originalCachePath = '';
 
+const SETTINGS_CACHE_KEY = 'foundrywebui:settingsCache';
+
+function loadSettingsCache() {
+    try {
+        const raw = sessionStorage.getItem(SETTINGS_CACHE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+}
+
+function saveSettingsCache(data) {
+    try {
+        const existing = loadSettingsCache();
+        sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({ ...existing, ...data }));
+    } catch { /* quota */ }
+}
+
 // Foundry CLI info elements
 const foundryInfoLoading = document.getElementById('foundry-info-loading');
 const foundryInfoContent = document.getElementById('foundry-info-content');
@@ -34,21 +50,31 @@ document.addEventListener('DOMContentLoaded', () => {
 // Foundry CLI Info
 // ============================================================
 
+function renderFoundryInfo(data) {
+    foundryInfoLoading.style.display = 'none';
+    foundryInfoContent.style.display = 'block';
+    if (data.found) {
+        foundryInfoIcon.innerHTML = '<span class="badge-status badge-success">Found</span>';
+        foundryInfoPath.textContent = data.executablePath;
+    } else {
+        foundryInfoIcon.innerHTML = '<span class="badge-status badge-danger">Not Found</span>';
+        foundryInfoPath.textContent = data.executablePath === 'foundry' ? 'foundry.exe not found on this system' : data.executablePath;
+    }
+}
+
 async function loadFoundryInfo() {
+    const cached = loadSettingsCache();
+    if (cached.foundryInfo) {
+        renderFoundryInfo(cached.foundryInfo);
+        return;
+    }
     try {
         const res = await fetch('/api/settings/foundry-info');
         const data = await res.json();
-        foundryInfoLoading.style.display = 'none';
-        foundryInfoContent.style.display = 'block';
-        if (data.found) {
-            foundryInfoIcon.innerHTML = '<span class="badge bg-success">Found</span>';
-            foundryInfoPath.textContent = data.executablePath;
-        } else {
-            foundryInfoIcon.innerHTML = '<span class="badge bg-danger">Not Found</span>';
-            foundryInfoPath.textContent = data.executablePath === 'foundry' ? 'foundry.exe not found on this system' : data.executablePath;
-        }
+        saveSettingsCache({ foundryInfo: data });
+        renderFoundryInfo(data);
     } catch (err) {
-        foundryInfoLoading.innerHTML = `<span class="text-danger small">Could not detect Foundry CLI: ${err.message}</span>`;
+        foundryInfoLoading.innerHTML = `<span style="color: var(--red); font-size: 0.85rem;">Could not detect Foundry CLI: ${err.message}</span>`;
     }
 }
 
@@ -56,27 +82,40 @@ async function loadFoundryInfo() {
 // Cache Directory
 // ============================================================
 
+function renderCacheDirectory(data) {
+    cacheDirLoading.style.display = 'none';
+    cacheDirContent.style.display = 'block';
+    if (data.detected) {
+        cacheDirPath.value = data.path;
+        originalCachePath = data.path;
+    } else {
+        cacheDirPath.value = '';
+        cacheDirPath.placeholder = 'Could not detect — enter path manually';
+    }
+}
+
 async function loadCacheDirectory() {
+    const cached = loadSettingsCache();
+    if (cached.cacheDir) {
+        renderCacheDirectory(cached.cacheDir);
+        return;
+    }
     try {
         const res = await fetch('/api/settings/cache-directory');
         const data = await res.json();
-        cacheDirLoading.style.display = 'none';
-        cacheDirContent.style.display = 'block';
-        if (data.detected) {
-            cacheDirPath.value = data.path;
-            originalCachePath = data.path;
-        } else {
-            cacheDirPath.value = '';
-            cacheDirPath.placeholder = 'Could not detect — enter path manually';
-        }
+        saveSettingsCache({ cacheDir: data });
+        renderCacheDirectory(data);
     } catch (err) {
-        cacheDirLoading.innerHTML = `<span class="text-danger">Error loading cache directory: ${err.message}</span>`;
+        cacheDirLoading.innerHTML = `<span style="color: var(--red);">Error loading cache directory: ${err.message}</span>`;
     }
 }
 
 function showCacheStatus(message, type) {
     cacheDirStatus.style.display = 'block';
-    cacheDirStatus.className = `mt-2 small text-${type}`;
+    const colorMap = { success: 'var(--green)', danger: 'var(--red)', muted: 'var(--text-tertiary)' };
+    cacheDirStatus.style.color = colorMap[type] || 'var(--text-secondary)';
+    cacheDirStatus.className = 'mt-2';
+    cacheDirStatus.style.fontSize = '0.8rem';
     cacheDirStatus.textContent = message;
 }
 
@@ -92,7 +131,7 @@ btnSaveCacheDir.addEventListener('click', async () => {
     }
 
     btnSaveCacheDir.disabled = true;
-    btnSaveCacheDir.textContent = '⏳ Saving...';
+    btnSaveCacheDir.textContent = 'Saving...';
     cacheDirStatus.style.display = 'none';
 
     try {
@@ -104,15 +143,16 @@ btnSaveCacheDir.addEventListener('click', async () => {
         const data = await res.json();
         if (res.ok) {
             originalCachePath = data.path;
-            showCacheStatus(`✅ Cache directory updated. ${data.message || ''}`, 'success');
+            saveSettingsCache({ cacheDir: { detected: true, path: data.path } });
+            showCacheStatus(`Cache directory updated. ${data.message || ''}`, 'success');
         } else {
-            showCacheStatus(`❌ ${data.error}`, 'danger');
+            showCacheStatus(data.error, 'danger');
         }
     } catch (err) {
-        showCacheStatus(`❌ ${err.message}`, 'danger');
+        showCacheStatus(err.message, 'danger');
     } finally {
         btnSaveCacheDir.disabled = false;
-        btnSaveCacheDir.textContent = '💾 Save';
+        btnSaveCacheDir.textContent = 'Save';
     }
 });
 
@@ -122,29 +162,29 @@ async function loadPrompts() {
         const prompts = await res.json();
         renderPrompts(prompts);
     } catch (err) {
-        promptsList.innerHTML = `<div class="text-center text-danger py-4">Error loading prompts: ${err.message}</div>`;
+        promptsList.innerHTML = `<div class="text-center py-4" style="color: var(--red);">Error loading prompts: ${err.message}</div>`;
     }
 }
 
 function renderPrompts(prompts) {
     if (prompts.length === 0) {
-        promptsList.innerHTML = '<div class="text-center text-muted py-4">No system prompts configured.</div>';
+        promptsList.innerHTML = '<div class="text-center py-4" style="color: var(--text-tertiary);">No system prompts configured.</div>';
         return;
     }
 
     promptsList.innerHTML = prompts.map(p => `
-        <div class="list-group-item d-flex align-items-start gap-3">
-            <div class="flex-grow-1">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <strong>${escapeHtml(p.name)}</strong>
-                    ${p.isDefault ? '<span class="badge bg-success">Default</span>' : ''}
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-muted);">
+            <div style="flex: 1; min-width: 0;">
+                <div class="d-flex align-items-center gap-sm" style="margin-bottom: 4px;">
+                    <strong style="font-size: 0.875rem;">${escapeHtml(p.name)}</strong>
+                    ${p.isDefault ? '<span class="badge-status badge-success">Default</span>' : ''}
                 </div>
-                <div class="text-muted small" style="white-space: pre-wrap; max-height: 80px; overflow: hidden;">${escapeHtml(p.content)}</div>
+                <div class="text-tertiary" style="font-size: 0.8rem; white-space: pre-wrap; max-height: 60px; overflow: hidden; line-height: 1.4;">${escapeHtml(p.content)}</div>
             </div>
-            <div class="d-flex flex-column gap-1" style="min-width: 90px;">
-                ${!p.isDefault ? `<button class="btn btn-sm btn-outline-success" onclick="setDefault('${p.id}')" title="Set as default">⭐ Default</button>` : ''}
-                <button class="btn btn-sm btn-outline-light" onclick="editPrompt('${p.id}')">✏️ Edit</button>
-                ${!p.isDefault ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePrompt('${p.id}', '${escapeHtml(p.name)}')">🗑️ Delete</button>` : ''}
+            <div class="d-flex gap-sm" style="flex-shrink: 0;">
+                ${!p.isDefault ? `<button class="btn-success-ghost" onclick="setDefault('${p.id}')" title="Set as default" style="font-size: 0.75rem;">Default</button>` : ''}
+                <button class="btn-ghost" onclick="editPrompt('${p.id}')" style="font-size: 0.75rem;">Edit</button>
+                ${!p.isDefault ? `<button class="btn-danger-ghost" onclick="deletePrompt('${p.id}', '${escapeHtml(p.name)}')" style="font-size: 0.75rem;">Delete</button>` : ''}
             </div>
         </div>
     `).join('');

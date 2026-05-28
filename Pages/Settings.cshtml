@@ -4,39 +4,35 @@
     ViewData["Title"] = "Settings";
 }
 
-<div class="d-flex flex-column h-100 p-3">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>⚙️ Settings</h3>
+<div class="d-flex flex-column h-100 p-3" style="overflow-y: auto;">
+    <div class="page-header">
+        <h3>Settings</h3>
     </div>
 
     <!-- Foundry CLI Info -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h5 class="mb-0">🔧 Foundry CLI</h5>
-        </div>
-        <div class="card-body">
-            <div id="foundry-info-loading" class="text-center text-muted py-2">Detecting...</div>
+    <div class="panel mb-3">
+        <div class="panel-header">Foundry CLI</div>
+        <div class="panel-body">
+            <div id="foundry-info-loading" class="text-tertiary" style="font-size: 0.85rem;">Detecting...</div>
             <div id="foundry-info-content" style="display: none;">
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-sm">
                     <span id="foundry-info-icon"></span>
-                    <code id="foundry-info-path" class="text-break"></code>
+                    <code class="text-mono" id="foundry-info-path" style="font-size: 0.8rem; color: var(--text-secondary); word-break: break-all;"></code>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Model Cache Directory -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h5 class="mb-0">📁 Model Cache Directory</h5>
-        </div>
-        <div class="card-body">
-            <p class="text-muted small mb-3">The directory where Foundry Local stores downloaded model files. Changing this requires the Foundry CLI and may require restarting the Foundry service.</p>
-            <div id="cache-dir-loading" class="text-center text-muted py-2">Loading...</div>
+    <div class="panel mb-3">
+        <div class="panel-header">Model Cache Directory</div>
+        <div class="panel-body">
+            <p class="text-tertiary" style="font-size: 0.8rem; margin-bottom: 12px;">The directory where Foundry Local stores downloaded model files. Changing this requires the Foundry CLI and may require restarting the Foundry service.</p>
+            <div id="cache-dir-loading" class="text-tertiary" style="font-size: 0.85rem;">Loading...</div>
             <div id="cache-dir-content" style="display: none;">
-                <div class="input-group">
-                    <input type="text" id="cache-dir-path" class="form-control font-monospace" placeholder="e.g. D:\FoundryModelCache" />
-                    <button id="btn-save-cache-dir" class="btn btn-primary" title="Save">💾 Save</button>
+                <div class="d-flex gap-sm">
+                    <input type="text" id="cache-dir-path" class="input-dark text-mono flex-grow-1" placeholder="e.g. /path/to/cache" />
+                    <button id="btn-save-cache-dir" class="btn-action">Save</button>
                 </div>
                 <div id="cache-dir-status" class="mt-2" style="display: none;"></div>
             </div>
@@ -44,14 +40,14 @@
     </div>
 
     <!-- System Prompts -->
-    <div class="card flex-grow-1 overflow-hidden">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">System Prompts</h5>
-            <button id="btn-add-prompt" class="btn btn-sm btn-primary">➕ New Prompt</button>
+    <div class="panel flex-grow-1 overflow-hidden d-flex flex-column">
+        <div class="panel-header">
+            <span>System Prompts</span>
+            <button id="btn-add-prompt" class="btn-action" style="font-size: 0.75rem; padding: 3px 12px;">New Prompt</button>
         </div>
-        <div class="card-body p-0 overflow-auto">
+        <div class="flex-grow-1 overflow-auto">
             <div id="prompts-list" class="list-group list-group-flush">
-                <div class="text-center text-muted py-4">Loading...</div>
+                <div class="text-center py-4" style="color: var(--text-tertiary);">Loading...</div>
             </div>
         </div>
     </div>
@@ -66,18 +62,18 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="prompt-name" class="form-label fw-bold">Name</label>
-                        <input type="text" id="prompt-name" class="form-control" placeholder="e.g. Code Assistant, Translator, Summarizer" />
+                        <label for="prompt-name" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Name</label>
+                        <input type="text" id="prompt-name" class="input-dark" style="width: 100%;" placeholder="e.g. Code Assistant, Translator, Summarizer" />
                     </div>
                     <div class="mb-3">
-                        <label for="prompt-content" class="form-label fw-bold">System Prompt</label>
-                        <textarea id="prompt-content" class="form-control" rows="8" placeholder="You are a helpful assistant that..."></textarea>
-                        <div class="form-text">This message is sent as the system role at the start of every conversation using this prompt.</div>
+                        <label for="prompt-content" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">System Prompt</label>
+                        <textarea id="prompt-content" class="input-dark" rows="8" style="width: 100%;" placeholder="You are a helpful assistant that..."></textarea>
+                        <div class="text-tertiary" style="font-size: 0.75rem; margin-top: 4px;">This message is sent as the system role at the start of every conversation using this prompt.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" id="btn-save-prompt" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="btn-save-prompt" class="btn-action">Save</button>
                 </div>
             </div>
         </div>

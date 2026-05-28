@@ -5,51 +5,67 @@
 }
 
 <div class="d-flex flex-column h-100 p-3">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>📦 Model Management</h3>
-        <div class="d-flex gap-2">
-            <button id="btn-download-selected" class="btn btn-sm btn-primary" disabled>⬇️ Download Selected (<span id="selected-count">0</span>)</button>
-            <button id="btn-refresh" class="btn btn-sm btn-outline-light">🔄 Refresh</button>
+    <div class="page-header">
+        <h3>Model Management</h3>
+        <div class="d-flex gap-sm">
+            <button id="btn-download-selected" class="btn-action" disabled>Download Selected (<span id="selected-count">0</span>)</button>
+            <button id="btn-refresh" class="btn-ghost"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 11-4.546 2.914.5.5 0 00-.908-.418A6 6 0 108 2v1z"/><path d="M8 4.466V.534a.25.25 0 00-.41-.192L5.23 2.308a.25.25 0 000 .384l2.36 1.966A.25.25 0 008 4.466z"/></svg> Refresh</button>
         </div>
     </div>
 
     <!-- Download Progress -->
-    <div id="download-progress" class="card mb-3 d-none">
-        <div class="card-body">
-            <h6 id="download-model-name" class="card-title">Downloading...</h6>
-            <div class="progress" style="height: 24px;">
-                <div id="download-bar" class="progress-bar progress-bar-striped progress-bar-animated"
-                     role="progressbar" style="width: 0%;">0%</div>
+    <div id="download-progress" class="panel mb-3 d-none">
+        <div class="panel-body">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span id="download-model-name" class="fw-semibold" style="font-size: 0.85rem;">Downloading...</span>
             </div>
-            <small id="download-status" class="text-muted mt-1 d-block"></small>
+            <div class="progress-track mb-2">
+                <div id="download-bar" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <small id="download-status" class="text-tertiary text-mono" style="font-size: 0.75rem;"></small>
         </div>
     </div>
 
     <!-- Models Table -->
-    <div class="card flex-grow-1 overflow-hidden">
-        <div class="card-body p-0 overflow-auto">
-            <table class="table table-hover mb-0">
-                <thead class="sticky-top" style="background: var(--bs-body-bg); z-index: 1;">
+    <div class="panel flex-grow-1 overflow-hidden d-flex flex-column">
+        <div class="overflow-auto flex-grow-1">
+            <table class="table-dark-custom">
+                <thead>
                     <tr>
                         <th style="width: 40px;">
-                            <input type="checkbox" id="select-all" class="form-check-input" title="Select all available models" />
+                            <input type="checkbox" id="select-all" class="check-dark" title="Select all available models" />
                         </th>
                         <th class="sortable" data-sort="name" role="button">Model <span class="sort-icon"></span></th>
                         <th class="sortable" data-sort="status" role="button">Status <span class="sort-icon"></span></th>
+                        <th>Capabilities</th>
                         <th class="sortable" data-sort="size" role="button">Size <span class="sort-icon"></span></th>
                         <th class="sortable" data-sort="ram" role="button">Est. RAM <span class="sort-icon"></span></th>
                         <th class="sortable" data-sort="canRun" role="button">Can Run <span class="sort-icon"></span></th>
                         <th class="sortable" data-sort="device" role="button">Device <span class="sort-icon"></span></th>
-                        <th class="sortable" data-sort="maxTokens" role="button">Max Tokens <span class="sort-icon"></span></th>
+                        <th class="sortable" data-sort="context" role="button">Context <span class="sort-icon"></span></th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="models-table-body">
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">Loading models...</td>
+                        <td colspan="10" class="text-center py-4" style="color: var(--text-tertiary);">Loading models...</td>
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Remove Modal -->
+<div id="confirm-modal-overlay" class="confirm-overlay d-none">
+    <div class="confirm-dialog">
+        <div class="confirm-header">Remove Model</div>
+        <div class="confirm-body">
+            <p id="confirm-modal-text"></p>
+        </div>
+        <div class="confirm-footer">
+            <button id="confirm-modal-cancel" class="btn-ghost">Cancel</button>
+            <button id="confirm-modal-ok" class="btn-danger-ghost">Remove</button>
         </div>
     </div>
 </div>

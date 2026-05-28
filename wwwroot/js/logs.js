@@ -1,15 +1,44 @@
-// logs.js - Logs page: fetch and display logs from multiple sources
+// logs.js - Logs page: display Foundry Local service logs
 
-let currentSource = 'app';
 let autoScroll = true;
 
-async function loadLogs(source) {
-    currentSource = source || currentSource;
+const LOG_TAG_MAP = { ERR: 'error', FTL: 'error', CRT: 'error', WRN: 'warn', INF: 'info', DBG: 'debug', VRB: 'debug' };
+
+const LOG_LINE_RE = /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3}\s+[+-]\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)/s;
+
+function parseLogLine(message) {
+    const m = String(message).match(LOG_LINE_RE);
+    if (m) {
+        return { timestamp: m[1], level: m[2], text: m[3] };
+    }
+    return null;
+}
+
+function detectLevel(entry) {
+    const explicit = (entry.level || '').toLowerCase();
+    if (explicit) return explicit;
+    if (!entry.message) return '';
+    const m = entry.message.match(/\[(ERR|INF|WRN|DBG|FTL|VRB|CRT)\]/i);
+    return m ? (LOG_TAG_MAP[m[1].toUpperCase()] || '') : '';
+}
+
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightText(text, searchTerm) {
+    if (!searchTerm) return text;
+    const escaped = esc(text);
+    const regex = new RegExp(`(${escapeRegex(esc(searchTerm))})`, 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
+}
+
+async function loadLogs() {
     const viewer = document.getElementById('log-viewer');
     const showing = document.getElementById('log-showing');
 
     try {
-        const res = await fetch(`/api/logs/${currentSource}?lines=500`);
+        const res = await fetch('/api/logs/foundry?lines=500');
         if (!res.ok) {
             viewer.innerHTML = `<div class="text-danger p-3">Error loading logs: HTTP ${res.status}</div>`;
             return;
@@ -17,24 +46,21 @@ async function loadLogs(source) {
         const data = await res.json();
         const entries = data.entries || [];
 
-        // Update count badge
-        const badge = document.getElementById(`${currentSource}-count`);
+        const badge = document.getElementById('foundry-count');
         if (badge) badge.textContent = entries.length;
 
-        // Apply filters
         const levelFilter = document.getElementById('log-level-filter').value;
-        const searchText = document.getElementById('log-search').value.toLowerCase();
+        const searchRaw = document.getElementById('log-search').value;
+        const searchText = searchRaw.toLowerCase();
 
         const filtered = entries.filter(e => {
-            // Level filter
             if (levelFilter !== 'all') {
-                const entryLevel = (e.level || '').toLowerCase();
-                const levels = { 'error': 0, 'critical': 0, 'warn': 1, 'warning': 1, 'info': 2, 'information': 2, 'debug': 3, 'trace': 4 };
+                const entryLevel = detectLevel(e);
+                const levels = { 'error': 0, 'critical': 0, 'fatal': 0, 'warn': 1, 'warning': 1, 'info': 2, 'information': 2, 'debug': 3, 'trace': 4, 'verbose': 4 };
                 const filterLevel = levels[levelFilter] ?? 2;
                 const eLevel = levels[entryLevel] ?? 2;
                 if (eLevel > filterLevel) return false;
             }
-            // Text search
             if (searchText) {
                 const text = JSON.stringify(e).toLowerCase();
                 if (!text.includes(searchText)) return false;
@@ -47,40 +73,68 @@ async function loadLogs(source) {
         if (filtered.length === 0) {
             viewer.innerHTML = `<div class="text-muted p-3">${entries.length === 0 ? 'No log entries found.' : 'No entries match the current filter.'}</div>`;
             if (data.logDir) {
-                viewer.innerHTML += `<div class="text-muted small p-3">Log directory: ${data.logDir}</div>`;
+                viewer.innerHTML += `<div class="text-muted small p-3">Log directory: ${esc(data.logDir)}</div>`;
             }
             return;
         }
 
-        // Render log lines
-        const html = filtered.map(e => {
-            const level = (e.level || '').toLowerCase();
+        // Group consecutive continuation lines with their parent entry.
+        // A continuation line is one that doesn't start with a timestamp
+        // (e.g. stack traces, exception details).
+        const grouped = [];
+        for (const e of filtered) {
+            if (LOG_LINE_RE.test(e.message) || grouped.length === 0) {
+                grouped.push({ entry: e, continuations: [] });
+            } else {
+                grouped[grouped.length - 1].continuations.push(e);
+            }
+        }
+
+        let currentFile = null;
+        const parts = [];
+        for (const group of grouped) {
+            const { entry, continuations } = group;
+            const level = detectLevel(entry);
             let cssClass = '';
-            if (level === 'error' || level === 'critical') cssClass = 'log-line-error';
+            if (level === 'error' || level === 'critical' || level === 'fatal') cssClass = 'log-line-error';
             else if (level === 'warn' || level === 'warning') cssClass = 'log-line-warn';
             else if (level === 'info' || level === 'information') cssClass = 'log-line-info';
-            else if (level === 'debug' || level === 'trace') cssClass = 'log-line-debug';
+            else if (level === 'debug' || level === 'trace' || level === 'verbose') cssClass = 'log-line-debug';
 
-            if (currentSource === 'app') {
-                const cat = e.category ? `[${e.category}]` : '';
-                return `<div class="${cssClass}">${esc(e.time)} ${esc(level.toUpperCase().padEnd(5))} ${esc(cat)} ${esc(e.message)}</div>`;
-            } else if (currentSource === 'iis') {
-                const file = e.file ? `[${e.file}] ` : '';
-                return `<div>${esc(file)}${esc(e.message)}</div>`;
-            } else if (currentSource === 'foundry') {
-                const file = e.file ? `[${e.file}] ` : '';
-                return `<div>${esc(file)}${esc(e.message)}</div>`;
-            } else if (currentSource === 'eventlog') {
-                return `<div class="${cssClass}">${esc(e.time)} [${esc(e.source)}] ${esc(level.toUpperCase().padEnd(5))} ${esc(e.message)}</div>`;
+            if (entry.file && entry.file !== currentFile) {
+                currentFile = entry.file;
+                parts.push(`<div class="log-file-header">${esc(entry.file)}</div>`);
             }
-            return `<div>${esc(JSON.stringify(e))}</div>`;
-        }).join('');
 
-        viewer.innerHTML = html;
+            const parsed = parseLogLine(entry.message);
+            let timestampHtml = '';
+            let messageText = entry.message;
+            if (parsed) {
+                timestampHtml = `<span class="log-timestamp">${esc(parsed.timestamp)}</span> <span class="log-level-tag">[${esc(parsed.level)}]</span> `;
+                messageText = parsed.text;
+            }
 
-        // Show log directory info if available
+            const highlighted = highlightText(messageText, searchRaw);
+            parts.push(`<div class="${cssClass}">${timestampHtml}${highlighted}</div>`);
+
+            for (const c of continuations) {
+                const contLevel = detectLevel(c);
+                let contCss = 'log-line-continuation';
+                if (contLevel === 'error' || contLevel === 'critical' || contLevel === 'fatal') contCss += ' log-line-error';
+                else if (contLevel === 'warn' || contLevel === 'warning') contCss += ' log-line-warn';
+                else if (contLevel === 'info' || contLevel === 'information') contCss += ' log-line-info';
+                else if (contLevel === 'debug' || contLevel === 'trace' || contLevel === 'verbose') contCss += ' log-line-debug';
+
+                const contHighlighted = highlightText(c.message, searchRaw);
+                parts.push(`<div class="${contCss}">${contHighlighted}</div>`);
+            }
+        }
+        const rendered = parts.join('');
+
         if (data.logDir && data.logDir !== '(not found)') {
-            viewer.innerHTML = `<div class="text-muted small mb-2" style="opacity:0.6;">📁 ${esc(data.logDir)}</div>` + viewer.innerHTML;
+            viewer.innerHTML = `<div class="text-muted small" style="opacity:0.6; margin-bottom:8px;">${esc(data.logDir)}</div>` + rendered;
+        } else {
+            viewer.innerHTML = rendered;
         }
 
         if (autoScroll) {
@@ -93,31 +147,25 @@ async function loadLogs(source) {
 }
 
 function esc(text) {
-    if (!text) return '';
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (text === null || text === undefined) return '';
+    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Tab switching
-    document.querySelectorAll('.nav-tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            loadLogs(btn.dataset.source);
-        });
-    });
-
-    // Refresh
     document.getElementById('btn-refresh-logs')?.addEventListener('click', () => loadLogs());
 
-    // Auto-scroll toggle
     const autoScrollBtn = document.getElementById('btn-auto-scroll');
     autoScrollBtn?.addEventListener('click', () => {
         autoScroll = !autoScroll;
-        autoScrollBtn.classList.toggle('active', autoScroll);
+        if (autoScroll) {
+            autoScrollBtn.style.borderColor = 'var(--accent)';
+            autoScrollBtn.style.color = 'var(--accent)';
+        } else {
+            autoScrollBtn.style.borderColor = '';
+            autoScrollBtn.style.color = '';
+        }
     });
 
-    // Filters
     document.getElementById('log-level-filter')?.addEventListener('change', () => loadLogs());
     let searchTimeout;
     document.getElementById('log-search')?.addEventListener('input', () => {
@@ -125,19 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         searchTimeout = setTimeout(() => loadLogs(), 300);
     });
 
-    // Initial load + preload counts for all tabs
-    loadLogs('app');
-    ['iis', 'foundry', 'eventlog'].forEach(async source => {
-        try {
-            const res = await fetch(`/api/logs/${source}?lines=500`);
-            if (res.ok) {
-                const data = await res.json();
-                const badge = document.getElementById(`${source}-count`);
-                if (badge) badge.textContent = (data.entries || []).length;
-            }
-        } catch {}
-    });
-
-    // Auto-refresh every 10 seconds
+    loadLogs();
     setInterval(() => loadLogs(), 10000);
 });
