@@ -1,4 +1,5 @@
 using FoundryWebUI.Services;
+using FoundryWebUI.TestInfrastructure;
 
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -10,11 +11,11 @@ namespace FoundryWebUI.IntegrationTests.Helpers;
 
 /// <summary>
 /// Spins up the FoundryWebUI-X host with the Foundry Local <see cref="HttpClient"/> handler
-/// replaced by <see cref="StubFoundryHandler"/>, served via the in-memory TestServer.
+/// replaced by <see cref="TestHttpMessageHandler"/>, served via the in-memory TestServer.
 /// </summary>
 public sealed class FoundryWebUIFactory : WebApplicationFactory<Program>
 {
-    public StubFoundryHandler FoundryStub { get; } = new();
+    public TestHttpMessageHandler FoundryStub { get; } = new();
 
     protected override IHost CreateHost(IHostBuilder builder)
     {

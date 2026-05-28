@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
 
-namespace FoundryWebUI.UnitTests.Helpers;
+namespace FoundryWebUI.TestInfrastructure;
 
-internal sealed class TestWebHostEnvironment : IWebHostEnvironment
+public sealed class TestWebHostEnvironment : IWebHostEnvironment
 {
     public string WebRootPath { get; set; } = Path.GetTempPath();
     public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();

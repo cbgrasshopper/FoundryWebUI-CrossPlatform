@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\FoundryWebUI-X.TestInfrastructure\FoundryWebUI-X.TestInfrastructure.csproj" />
     <ProjectReference Include="..\..\FoundryWebUI-X.csproj" />
   </ItemGroup>
 

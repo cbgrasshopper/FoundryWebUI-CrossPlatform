@@ -3,7 +3,7 @@ using System.Text.Json;
 
 using FoundryWebUI.Models;
 using FoundryWebUI.Services;
-using FoundryWebUI.UnitTests.Helpers;
+using FoundryWebUI.TestInfrastructure;
 
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;

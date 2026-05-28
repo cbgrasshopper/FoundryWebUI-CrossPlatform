@@ -1,13 +1,8 @@
 using System.Net;
 using System.Text;
 
-namespace FoundryWebUI.UnitTests.Helpers;
+namespace FoundryWebUI.TestInfrastructure;
 
-/// <summary>
-/// Tiny scriptable <see cref="HttpMessageHandler"/> used to mock Foundry Local's HTTP surface.
-/// Each registered handler is a delegate that inspects the incoming request and returns a
-/// response. Requests not matched by any handler return 404.
-/// </summary>
 public sealed class TestHttpMessageHandler : HttpMessageHandler
 {
     private readonly List<Func<HttpRequestMessage, HttpResponseMessage?>> _handlers = [];
