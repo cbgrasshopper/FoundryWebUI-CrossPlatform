@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FoundryWebUI</RootNamespace>
+    <AssemblyName>FoundryWebUI-X</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      Suppressions:
+        CS1591  Missing XML docs (not required)
+        CS8424  await yield warnings on disabled streams
+        CA1031  Catch general exception (intentional)
+        CA1303  Localizable string literals (single locale)
+        CA1310  StartsWith without StringComparison (legacy chat parser)
+        CA1515  Internal-by-default (Razor requires public)
+        CA1716  Identifier matches keyword (e.g. Property "Error")
+        CA1812  Apparently never-instantiated classes (DI surfaces)
+        CA1848  Use LoggerMessage delegates (not worth the boilerplate here)
+        CA1851  Avoid multiple enumerations (false positives w/ controller code)
+        CA1859  Use concrete types where possible (DI returns interfaces by design)
+        CA1860  Avoid Any() over Count (preference)
+        CA1866  StartsWith(char) instead of single-char string (legacy parser)
+        CA1869  Cache JsonSerializerOptions (already cached in hot paths)
+        CA1873  Expensive logger arguments (relies on lazy formatting)
+        CA2007  ConfigureAwait (not needed in app code)
+        CA2024  EndOfStream in async (used in chat SSE parser)
+        IDE0007 Use 'var' (preference, not enforceable across this codebase)
+        IDE0011 Add braces (preference, mixed in this codebase)
+        IDE0028 Collection initialization simplification (preference)
+        IDE0046 Convert to conditional expression (preference)
+        IDE0290 Use primary constructor (preference; we use both forms)
+    -->
+    <NoWarn>$(NoWarn);CS1591;CS8424;CA1031;CA1303;CA1305;CA1310;CA1515;CA1716;CA1812;CA1848;CA1851;CA1859;CA1860;CA1866;CA1869;CA1873;CA2007;CA2024;IDE0007;IDE0011;IDE0028;IDE0046;IDE0290</NoWarn>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+    <Content Remove="tests/**" />
+    <None Remove="tests/**" />
+    <EmbeddedResource Remove="tests/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="6.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-rc.1.25451.107" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+    <MinVerMinimumMajorMinor>0.1</MinVerMinimumMajorMinor>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+  </PropertyGroup>
+
+</Project>

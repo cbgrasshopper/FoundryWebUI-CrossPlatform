@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="FoundryWebUI-X.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/FoundryWebUI-X.UnitTests/FoundryWebUI-X.UnitTests.csproj" />
+    <Project Path="tests/FoundryWebUI-X.IntegrationTests/FoundryWebUI-X.IntegrationTests.csproj" />
+    <Project Path="tests/FoundryWebUI-X.E2ETests/FoundryWebUI-X.E2ETests.csproj" />
+  </Folder>
+</Solution>

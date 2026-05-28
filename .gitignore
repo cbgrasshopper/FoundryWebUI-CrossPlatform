@@ -1,21 +1,208 @@
-## .NET
-bin/
-obj/
+## ---------------------------------------------------------------------------
+## .NET / MSBuild build output
+## ---------------------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
 publish/
-*.user
-*.suo
-*.cache
+[Pp]ublish/
+artifacts/
+[Aa]rtifacts/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild[Ll]og.*
+*.binlog
+msbuild.log
+msbuild.err
+msbuild.wrn
 
-## IDE
+## Package output
+*.nupkg
+*.snupkg
+*.tgz
+
+## Diagnostics
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+*.diagsession
+*.psess
+*.vsp
+*.vspx
+*.sap
+PerfView*.*
+
+## Code coverage / test results
+TestResults/
+[Tt]est[Rr]esults/
+coverage/
+[Cc]overage/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+*.opencover.xml
+*.cobertura.xml
+*.gcda
+*.gcno
+lcov.info
+.coverlet/
+BenchmarkDotNet.Artifacts/
+
+## ---------------------------------------------------------------------------
+## Visual Studio / IDE / Editor
+## ---------------------------------------------------------------------------
 .vs/
 .vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.suo
+*.user
+*.userprefs
+*.userosscache
+*.sln.docstates
+*.sln.iml
+*.vcxproj.filters.user
+.idea/
+*.iml
+*.ipr
+*.iws
 *.swp
+*.swo
+*~
+.history/
+*.ncrunchproject
+*.ncrunchsolution
+_NCrunch_*
+*.[Cc]ache
+!?*.[Cc]ache/
 
-## OS
-Thumbs.db
-Desktop.ini
+## Rider / ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+## ---------------------------------------------------------------------------
+## Operating system
+## ---------------------------------------------------------------------------
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
 
-## Logs
-logs/
+## ---------------------------------------------------------------------------
+## Secrets / credentials / certs
+## ---------------------------------------------------------------------------
+*.pfx
+*.p12
+*.key
+*.pem
+*.cer
+*.snk
+secrets.json
+**/secrets.json
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+
+## ---------------------------------------------------------------------------
+## Node / front-end tooling (in case of future scaffolding)
+## ---------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.parcel-cache/
+.next/
+.nuxt/
+.svelte-kit/
+.turbo/
+
+## ---------------------------------------------------------------------------
+## Logs / misc runtime
+## ---------------------------------------------------------------------------
 *.log
+*.tlog
+*.pid
+*.seed
+*.pid.lock
+nohup.out
+
+## ---------------------------------------------------------------------------
+## NuGet
+## ---------------------------------------------------------------------------
+.nuget/
+packages/
+!**/packages.config
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+.nuget.lock.json
+
+## ---------------------------------------------------------------------------
+## Playwright / E2E tooling
+## ---------------------------------------------------------------------------
+playwright-report/
+playwright/.cache/
+test-results/
+.playwright/
+.playwright-mcp/
+
+## ---------------------------------------------------------------------------
+## Dev screenshots / scratch
+## ---------------------------------------------------------------------------
+screenshots/
+scratch/
+tmp/
+*.tmp
+
+## ---------------------------------------------------------------------------
+## Local agent / assistant configuration (not shared)
+## ---------------------------------------------------------------------------
+.claude/
+.superpowers/
+.aider*
+.amp/
+.cursor/
+.cursorignore
+.codeium/
+.windsurf/
+.continue/
+CLAUDE.local.md
+AGENTS.local.md
+
+## ---------------------------------------------------------------------------
+## Misc
+## ---------------------------------------------------------------------------
+*.bak
+*.orig
+*.rej
+*.patch
+*.diff
+.history

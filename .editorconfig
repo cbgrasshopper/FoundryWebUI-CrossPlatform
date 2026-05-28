@@ -1,0 +1,81 @@
+root = true
+
+# Defaults --------------------------------------------------------------
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+
+# Markdown / YAML keep 2-space indent
+[*.{md,yml,yaml}]
+indent_size = 2
+
+# PowerShell scripts use CRLF
+[*.ps1]
+end_of_line = crlf
+
+# JSON / project files
+[*.{json,csproj,slnx,props,targets}]
+indent_size = 2
+
+# C# ------------------------------------------------------------------
+[*.cs]
+indent_size = 4
+
+# File-scoped namespaces
+csharp_style_namespace_declarations = file_scoped:warning
+
+# Primary constructors
+csharp_style_prefer_primary_constructors = true:warning
+
+# `var` everywhere it's obvious
+csharp_style_var_for_built_in_types = true:warning
+csharp_style_var_when_type_is_apparent = true:warning
+csharp_style_var_elsewhere = true:warning
+
+# Modern expression-bodied / target-typed / pattern matching
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:warning
+csharp_style_expression_bodied_accessors = true:warning
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+dotnet_style_object_initializer = true:warning
+dotnet_style_collection_initializer = true:warning
+dotnet_style_prefer_collection_expression = when_types_loosely_match:warning
+
+# `using` directive policy
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:warning
+csharp_prefer_simple_using_statement = true:warning
+
+# Modifiers
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async:warning
+
+# Braces / new lines
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_prefer_braces = when_multiline:warning
+
+# Analyzer severities ---------------------------------------------------
+dotnet_diagnostic.CA1416.severity = warning   # Platform compat (we gate Windows code paths)
+dotnet_diagnostic.CA1031.severity = none      # Catch general exceptions — intentional in places
+dotnet_diagnostic.CA1303.severity = none      # Localizable string literals
+dotnet_diagnostic.CA1812.severity = none      # Apparent never-instantiated classes (DI)
+dotnet_diagnostic.CA1716.severity = none      # Reserved language keywords for identifiers
+dotnet_diagnostic.CA1515.severity = none      # Internal-by-default — Razor needs publics
+dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait — not needed in app code
+
+dotnet_diagnostic.IDE0005.severity = warning  # Unused using directives
+dotnet_diagnostic.IDE0040.severity = warning  # Accessibility modifiers
+dotnet_diagnostic.IDE0011.severity = warning  # Braces
+
+# Razor / cshtml — relax formatting (Razor generator emits its own style)
+[*.cshtml]
+indent_size = 4
+csharp_style_namespace_declarations = file_scoped:none
