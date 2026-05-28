@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+permissions:
+  contents: write
+
+jobs:
+  build-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            linkage: self-contained
+            archive: zip
+          - os: windows-latest
+            rid: win-x64
+            linkage: framework-dependent
+            archive: zip
+          - os: macos-latest
+            rid: osx-arm64
+            linkage: self-contained
+            archive: tar.gz
+          - os: macos-latest
+            rid: osx-arm64
+            linkage: framework-dependent
+            archive: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # MinVer needs full history.
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish (${{ matrix.rid }} / ${{ matrix.linkage }})
+        shell: pwsh
+        run: |
+          $self = '${{ matrix.linkage }}' -eq 'self-contained'
+          $outDir = "artifacts/${{ matrix.rid }}-${{ matrix.linkage }}"
+          dotnet publish FoundryWebUI-X.csproj `
+            -c Release `
+            -r ${{ matrix.rid }} `
+            --self-contained $self `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o $outDir
+
+      - name: Archive (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $base = "FoundryWebUI-X-${{ matrix.rid }}-${{ matrix.linkage }}"
+          Compress-Archive -Path "artifacts/${{ matrix.rid }}-${{ matrix.linkage }}/*" -DestinationPath "artifacts/$base.zip" -Force
+          (Get-FileHash "artifacts/$base.zip" -Algorithm SHA256).Hash + "  $base.zip" | Out-File -Encoding ascii "artifacts/$base.zip.sha256"
+
+      - name: Archive (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          base="FoundryWebUI-X-${{ matrix.rid }}-${{ matrix.linkage }}"
+          tar -czf "artifacts/$base.tar.gz" -C "artifacts/${{ matrix.rid }}-${{ matrix.linkage }}" .
+          shasum -a 256 "artifacts/$base.tar.gz" | awk '{ print $1 "  '"$base"'.tar.gz" }' > "artifacts/$base.tar.gz.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundrywebui-x-${{ matrix.rid }}-${{ matrix.linkage }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.tar.gz
+            artifacts/*.sha256
+          if-no-files-found: error
+
+  release:
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true
