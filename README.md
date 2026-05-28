@@ -1,155 +1,143 @@
-# FoundryLocalWebUI
+# FoundryWebUI-X
 
-Experimental web-based chat interface for **Microsoft Foundry Local**, hosted on IIS. Think of it as a self-hosted [Open WebUI](https://github.com/open-webui/open-webui) alternative built with ASP.NET Core -- designed to run on Windows Server alongside your local LLM inference engine.
+Cross-platform web UI for **[Microsoft Foundry Local](https://github.com/microsoft/Foundry-Local)** — a self-hosted, ASP.NET Core chat interface that runs as a local desktop service on **macOS (Apple Silicon)** and **Windows (x64)**, without IIS or Windows Authentication.
 
-> **Note**: This project supports **Foundry Local only**. Ollama is not supported.
+> Forked from [itopstalk/FoundryWebUI](https://github.com/itopstalk/FoundryWebUI). This variant drops the IIS/Windows-Server hosting model in favor of a Kestrel-only, loopback-by-default local app that runs identically on macOS and Windows. It supports **Foundry Local only**.
 
-[![Introduction to Foundry Local Web UI for IIS](https://img.youtube.com/vi/IGWNhSQziZI/0.jpg)](https://youtu.be/IGWNhSQziZI)
+[![CI](https://github.com/cbgrasshopper/foundrywebui-crossplatform/actions/workflows/ci.yml/badge.svg)](https://github.com/cbgrasshopper/foundrywebui-crossplatform/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
+![.NET 10](https://img.shields.io/badge/.NET-10-purple)
+![C# 14](https://img.shields.io/badge/C%23-14-blueviolet)
 
-![Platform](https://img.shields.io/badge/platform-Windows%20Server%202025-blue)
-![Framework](https://img.shields.io/badge/.NET-8.0-purple)
-![License](https://img.shields.io/badge/license-MIT-green)
+---
 
-## Deployment
+## What it is
 
-Deployment to a fresh Windows Server requires only **Git** and an elevated PowerShell prompt. The installer script handles everything else.
+A small, single-process ASP.NET Core app that:
 
-### Step 1: Install Git
+- Auto-detects (or is pointed at) a running **Foundry Local** instance.
+- Provides a chat UI with streaming SSE responses.
+- Lets you browse the Foundry catalog, download / remove models, and manage system prompts.
+- Surfaces Foundry Local logs in-browser — no EventLog, no IIS, no app-stdout tab.
 
-```powershell
-winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
-# Close and reopen PowerShell so git is on PATH
+It is intended to be launched manually (script or binary) on a developer's machine. It does **not** install itself as a service, configure auto-start, or open public network ports.
+
+## Requirements
+
+| | |
+|---|---|
+| OS | **macOS (arm64)** or **Windows (x64)** |
+| .NET | **.NET 10 SDK** (to build from source) or .NET 10 Runtime (framework-dependent published binary) |
+| Foundry Local | Foundry Local **GA** — see [GA announcement](https://devblogs.microsoft.com/foundry/foundry-local-ga/) and the [official repo](https://github.com/microsoft/Foundry-Local) |
+
+If Foundry Local is missing, FoundryWebUI-X surfaces an in-UI hint with install instructions:
+
+- **Windows**: `winget install Microsoft.FoundryLocal`
+- **macOS**: follow the official Foundry-Local release page on GitHub
+
+## Quick start (from source)
+
+```bash
+# 1. Clone
+git clone https://github.com/cbgrasshopper/foundrywebui-crossplatform.git
+cd foundrywebui-crossplatform
+
+# 2. Start Foundry Local (in another terminal)
+foundry service start
+
+# 3. Launch FoundryWebUI-X
+./scripts/dev.sh         # macOS / Linux
+.\scripts\dev.ps1        # Windows (PowerShell)
 ```
 
-### Step 2: Clone and run the installer
+The app binds to **`http://127.0.0.1:5207/`** (loopback only) and auto-opens your default browser.
 
-```powershell
-cd C:\Projects
-git clone https://github.com/itopstalk/FoundryWebUI.git FoundryLocalWebUI
-cd FoundryLocalWebUI
+## Quick start (from a published binary)
 
-# Windows Server 2025:
-.\Install-FoundryWebUI.ps1
+After publishing once with `dotnet publish` (see [Releases](#releases)):
 
-# Windows 10/11:
-.\Install-FoundryWebUI-Desktop.ps1
+```bash
+./scripts/start.sh       # macOS / Linux
+.\scripts\start.ps1      # Windows
 ```
 
-### What the installer does
+## CLI flags
 
-On **first run**, the script performs the following (all automated, no manual steps):
+All four launch scripts forward arguments to `FoundryWebUI-X`:
 
-- **Checks for WinGet** -- required for installing other components
-- **Installs IIS** with required features (WebSockets, static compression, Windows Authentication)
-  - Windows Server: uses `Install-WindowsFeature`
-  - Windows 10/11: uses `Enable-WindowsOptionalFeature` (DISM)
-- **Installs .NET 8.0 Hosting Bundle** -- required for IIS to run ASP.NET Core apps
-- **Installs .NET 8.0 SDK** -- required to build the application from source
-- **Installs Microsoft Foundry Local** via WinGet and pins it to port 5273
-- **Builds the application** from source using `dotnet publish`
-- **Creates an IIS website** and application pool (defaults: site `FoundryLocalWebUI` on port 80)
-- **Configures permissions** -- grants IIS app pool identity access to the Foundry Local model cache
-- **Adds a Windows Firewall rule** for the configured port
-- **Verifies the deployment** by testing the site URL and API endpoint
+| Flag | Default | Description |
+|---|---|---|
+| `--host <addr>` | `127.0.0.1` | Bind address. Loopback-only by default. |
+| `--port <n>` | `5207` | TCP port. |
+| `--no-browser` | *(off)* | Suppress browser auto-launch. Same as `FOUNDRYWEBUI_NO_BROWSER=1`. |
+| `--config <file>` | *(none)* | Additional `appsettings.json`-style override file. |
 
-On **subsequent runs** (after `git pull`), the script auto-detects the existing installation and:
+Example:
 
-- Skips prerequisite installation (IIS, .NET, Foundry Local)
-- Stops the IIS site, rebuilds from source, and redeploys
-- **Preserves your `appsettings.json` and `system-prompts.json`** customizations
-
-### Update an existing deployment
-
-```powershell
-cd C:\Projects\FoundryLocalWebUI
-git pull
-
-# Windows Server:
-.\Install-FoundryWebUI.ps1
-
-# Windows 10/11:
-.\Install-FoundryWebUI-Desktop.ps1
+```bash
+./scripts/dev.sh -- --port 8080 --no-browser
 ```
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the full step-by-step manual guide and troubleshooting.
 
 ## Features
 
-- **Chat Interface** -- Conversational UI with streaming responses (Server-Sent Events), message history, and basic Markdown rendering
-- **Model Management** -- Browse the full Foundry Local catalog (40+ models), download with progress tracking, and remove downloaded models
-- **Sortable Model Table** -- Click any column header to sort by name, status, size, RAM, device type, etc.
-- **Can Run Indicator** -- Estimates RAM requirements for each model and shows whether your system can run it
-- **Foundry Local Connection** -- Bright green/red status indicator with endpoint display and reconnect button
-- **Auto-Discovery** -- Automatically detects the Foundry Local endpoint via port scanning
-- **REST-Only** -- No CLI dependency; all interactions (download, delete, chat) use Foundry Local REST APIs
-- **Logs Page** -- View application, IIS, Foundry Local, and Windows Event Log entries with filtering and search
-- **Sidebar Navigation** -- Collapsible sidebar for navigating between Chat, Models, and Logs pages
-- **Dark Theme** -- Bootstrap 5 dark mode UI optimized for extended use
-- **IIS Hosted** -- Runs as an in-process IIS application with zero external dependencies beyond .NET
+- **Chat** — streaming SSE responses, message history, basic Markdown rendering.
+- **Model management** — browse the full Foundry catalog, download with live progress, remove cached models.
+- **Sortable models table** with “Can Run” RAM estimates.
+- **System prompt library** — create, edit, delete reusable prompts.
+- **Logs page** — single **Foundry Local** tab (reads Foundry's log dir cross-platform).
+- **Auto-discovery** of the Foundry Local endpoint via local port scan.
+- **REST-only** — no CLI dependency; uses Foundry Local REST APIs directly.
+- **Dark theme** Bootstrap 5 UI.
 
 ## Architecture
 
-```
-Browser ──── HTTP/SSE ────▶ IIS + ASP.NET Core
-                                │
-                                ▼
-                         Foundry Local
-                        (port 5273)
+```diagram
+╭─────────╮     HTTP/SSE      ╭───────────╮     HTTP      ╭───────────────╮
+│ Browser │ ─────────────────▶│  Kestrel  │ ────────────▶│ Foundry Local │
+╰─────────╯                   │ ASP.NET   │              ╰───────────────╯
+                              │ Core app  │
+                              ╰───────────╯
+                              ▲          │
+                              │          ▼
+                       ╭────────────────────╮
+                       │ Per-user data dirs │
+                       │  config / logs     │
+                       ╰────────────────────╯
 ```
 
 | Component | Role |
 |---|---|
-| **Razor Pages** | Chat (`/`) and Models (`/Models`) pages |
-| **API Controller** | REST + SSE endpoints under `/api/` |
-| **FoundryLocalService** | Adapter for Foundry Local REST API (download, delete, chat, catalog) |
-| **ILlmProvider** | Provider interface for extensibility |
+| **Kestrel** | HTTP host, bound to loopback by default. No reverse proxy. |
+| **Razor Pages** | `/` (Chat), `/Models`, `/Logs`, `/Settings` |
+| **`ApiController`** | REST + SSE endpoints under `/api/` |
+| **`FoundryLocalService`** | Adapter for the Foundry Local REST API |
+| **`SystemPromptStore`** | JSON-backed prompt library in the per-user config dir |
+| **Serilog** | Console + rolling-file + bounded in-memory sinks |
+| **`BrowserLauncher`** | Cross-platform browser opener (`open` / `cmd /c start`) |
 
-## Development (run locally)
-
-```powershell
-cd C:\Projects\FoundryLocalWebUI
-
-# Ensure Foundry Local is running
-foundry service start
-
-# Run the app
-dotnet run
-```
-
-Open `http://localhost:5207` in your browser.
-
-## API Endpoints
+## API endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/status` | Provider health check |
-| `GET` | `/api/system-info` | System RAM info (for "Can Run" estimates) |
-| `GET` | `/api/models` | List all models (downloaded + catalog) |
-| `GET` | `/api/models/loaded` | List only currently loaded/ready models |
-| `POST` | `/api/chat?provider=foundry` | Streaming chat completion (SSE) |
-| `POST` | `/api/models/download` | Download a model with progress (SSE) |
-| `DELETE` | `/api/models/{modelId}` | Remove a downloaded model from cache |
+| `GET` | `/api/system-info` | System RAM info (for "Can Run") |
+| `GET` | `/api/models` | List models (catalog + loaded) |
+| `GET` | `/api/models/loaded` | List currently loaded models |
+| `POST` | `/api/chat?provider=foundry` | Streaming chat (SSE) |
+| `POST` | `/api/models/download` | Download a model (SSE progress) |
+| `DELETE` | `/api/models/{id}` | Remove a cached model |
 | `POST` | `/api/reconnect` | Re-discover Foundry Local endpoint |
-
-### Chat request example
-
-```json
-POST /api/chat?provider=foundry
-Content-Type: application/json
-
-{
-  "model": "phi-3.5-mini",
-  "messages": [
-    { "role": "user", "content": "What is Foundry Local?" }
-  ],
-  "stream": true,
-  "temperature": 0.7
-}
-```
+| `GET` | `/api/logs/app` | In-memory application logs |
+| `GET` | `/api/logs/stdout` | Rolling app log file (own stdout) |
+| `GET` | `/api/logs/foundry` | Foundry Local log files |
+| `GET` | `/api/system-prompts` | List system prompts |
+| `POST` | `/api/system-prompts` | Create a prompt |
+| `PUT` | `/api/system-prompts/{id}` | Update a prompt |
+| `DELETE` | `/api/system-prompts/{id}` | Delete a prompt |
 
 ## Configuration
 
-Edit `appsettings.json`:
+Edit `appsettings.json` (or pass an override file via `--config`):
 
 ```json
 {
@@ -157,71 +145,99 @@ Edit `appsettings.json`:
     "Foundry": {
       "Endpoint": ""
     }
+  },
+  "Foundry": {
+    "ExecutablePath": ""
   }
 }
 ```
 
 | Setting | Default | Notes |
 |---|---|---|
-| `Foundry:Endpoint` | *(blank — auto-detect)* | Set explicitly (e.g., `http://localhost:5273`) if auto-detection fails from IIS |
+| `LlmProviders:Foundry:Endpoint` | *(blank — auto-detect)* | Set to `http://localhost:5273` to skip port scanning. |
+| `Foundry:ExecutablePath` | *(blank — discovered)* | Absolute path to the `foundry` binary. |
+| `FOUNDRYWEBUI_NO_BROWSER` (env) | *(unset)* | If `1`, suppress browser auto-launch. |
 
-> **Tip**: Pin the Foundry Local port with `foundry service set --port 5273` for consistent auto-detection.
+## Per-user data locations
 
-## Project Structure
+| | macOS | Windows |
+|---|---|---|
+| Settings (`system-prompts.json`) | `~/Library/Application Support/FoundryWebUI-X/` | `%APPDATA%\FoundryWebUI-X\` |
+| Logs (`app-YYYYMMDD.log`) | `~/Library/Logs/FoundryWebUI-X/` | `%LOCALAPPDATA%\FoundryWebUI-X\logs\` |
 
+These directories are created on first launch.
+
+## Building and testing
+
+```bash
+# Build
+dotnet build FoundryWebUI-X.csproj -c Release
+
+# Unit tests
+dotnet run --project tests/FoundryWebUI-X.UnitTests/FoundryWebUI-X.UnitTests.csproj -c Release
+
+# Integration tests (in-memory TestServer + stubbed Foundry handler)
+dotnet run --project tests/FoundryWebUI-X.IntegrationTests/FoundryWebUI-X.IntegrationTests.csproj -c Release
+
+# E2E tests (Playwright, Chromium only; downloads browser on first run)
+dotnet run --project tests/FoundryWebUI-X.E2ETests/FoundryWebUI-X.E2ETests.csproj -c Release
 ```
-FoundryLocalWebUI/
-├── Controllers/
-│   └── ApiController.cs          # REST + SSE API endpoints
-├── Models/
-│   └── LlmModels.cs              # DTOs (ChatMessage, ModelInfo, etc.)
-├── Services/
-│   ├── ILlmProvider.cs           # Provider interface
-│   ├── FoundryLocalService.cs    # Foundry Local adapter (REST API only)
-│   └── InMemoryLogStore.cs       # Ring buffer for application log capture
-├── Pages/
-│   ├── Index.cshtml              # Chat page with status panel
-│   ├── Models.cshtml             # Model management (download/remove)
-│   ├── Logs.cshtml               # Log viewer (app, IIS, Foundry, Event Log)
-│   └── Shared/_Layout.cshtml     # Sidebar layout (dark theme, status indicator)
-├── wwwroot/
-│   ├── css/site.css              # Custom styles
-│   └── js/
-│       ├── site.js               # Sidebar toggle, Foundry status check
-│       ├── chat.js               # Chat UI logic + SSE streaming
-│       ├── models.js             # Model listing, download, remove, sorting
-│       └── logs.js               # Log viewer UI with tabs and filtering
-├── Program.cs                    # App startup and DI configuration
-├── appsettings.json              # Configuration (Foundry endpoint)
-├── web.config                    # IIS hosting configuration
-├── Install-FoundryWebUI.ps1      # Automated installer (Windows Server)
-├── Install-FoundryWebUI-Desktop.ps1  # Automated installer (Windows 10/11)
-└── DEPLOYMENT.md                 # Full deployment & troubleshooting guide
+
+Test stack:
+
+- **[TUnit](https://tunit.dev)** — execution engine for all three projects. Do **not** add `Microsoft.NET.Test.Sdk`, xUnit, NUnit, MSTest, or coverlet.
+- **[Imposter](https://themidnightgospel.github.io/Imposter/latest/)** — interface mocks where useful.
+- **`WebApplicationFactory<Program>`** — integration tests via in-memory TestServer.
+- **Microsoft.Playwright** (Chromium) — E2E smoke tests over a real Kestrel host with a stubbed Foundry server.
+
+## Releases
+
+CI builds publish artifacts for both supported RIDs in two flavors. The release workflow is triggered by a tag matching `v*` (or `workflow_dispatch`) and uploads to a GitHub Release.
+
+| RID | Linkage | Archive | Single-file? |
+|---|---|---|---|
+| `win-x64` | self-contained | `.zip` | yes |
+| `win-x64` | framework-dependent | `.zip` | yes |
+| `osx-arm64` | self-contained | `.tar.gz` | yes |
+| `osx-arm64` | framework-dependent | `.tar.gz` | yes |
+
+Each archive ships alongside a `*.sha256` checksum file. Versions are computed by **[MinVer](https://github.com/adamralph/minver)** from the latest `v*` git tag, so `git tag v0.2.0 && git push --tags` is sufficient to cut a release.
+
+To publish locally:
+
+```bash
+# macOS, self-contained, single-file
+dotnet publish FoundryWebUI-X.csproj -c Release -r osx-arm64 \
+  --self-contained true -p:PublishSingleFile=true \
+  -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+
+# Windows, framework-dependent, single-file
+dotnet publish FoundryWebUI-X.csproj -c Release -r win-x64 `
+  --self-contained false -p:PublishSingleFile=true `
+  -o publish
 ```
 
 ## Troubleshooting
 
-| Symptom | Likely Cause | Fix |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Foundry shows red indicator in nav bar | Foundry Local not running or unreachable | Start it: `foundry service start` |
-| No models listed | Foundry Local not connected | Check endpoint in appsettings.json or click 🔄 Reconnect on home page |
-| Download fails | Foundry Local REST API error | Ensure Foundry Local is running; check IIS stdout logs |
-| Remove fails | File permissions or model still loaded | Ensure IIS app pool identity has write access to Foundry cache directory |
-| HTTP 500.30 on IIS | Hosting Bundle not installed | See [DEPLOYMENT.md — Troubleshooting](DEPLOYMENT.md#troubleshooting) |
-| Chat shows no response | JSON casing mismatch or model not loaded | Check IIS stdout logs; ensure a model is loaded |
-| Can't access from other machines | Windows Firewall blocking port | `New-NetFirewallRule -DisplayName "FoundryLocalWebUI" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow` |
-
-For the complete troubleshooting guide, see [DEPLOYMENT.md](DEPLOYMENT.md#troubleshooting).
+| Foundry status indicator is red | Foundry Local not running | `foundry service start`, then click 🔄 Reconnect |
+| No models listed | Auto-discovery failed | Set `LlmProviders:Foundry:Endpoint` explicitly |
+| Browser doesn't open | Headless terminal / `--no-browser` set | Open `http://127.0.0.1:5207/` manually |
+| Port 5207 already in use | Conflicting local service | Pass `--port 8080` (or any free port) |
+| `dotnet` not found | .NET 10 SDK not installed | Install from <https://dotnet.microsoft.com/download/dotnet/10.0> |
+| Logs page empty | Just started — buffer is empty | Trigger some traffic (refresh chat, hit Models); logs will populate |
 
 ## Roadmap
 
-- [ ] **Phase 2**: Conversation persistence (save/load chat history)
-- [ ] **Phase 2**: System prompt customization
-- [ ] **Phase 2**: Model parameter tuning (temperature, top_p, max_tokens)
-- [ ] **Phase 3**: Multi-user support with session isolation
-- [ ] **Phase 3**: File upload and document Q&A
-- [ ] **Phase 3**: RAG (Retrieval-Augmented Generation) integration
+- Conversation persistence (save / load chat history)
+- Model parameter tuning (temperature, top_p, max_tokens)
+- Multi-user session isolation
+- File upload / document Q&A
+- RAG integration
 
 ## License
 
-MIT
+MIT — see [LICENSE.txt](LICENSE.txt).
+
+This project is a fork of [itopstalk/FoundryWebUI](https://github.com/itopstalk/FoundryWebUI) (also MIT-licensed).
