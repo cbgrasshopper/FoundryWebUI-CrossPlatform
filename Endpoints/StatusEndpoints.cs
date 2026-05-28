@@ -1,0 +1,141 @@
+using System.Diagnostics;
+
+using FoundryWebUI.Models;
+using FoundryWebUI.Services;
+using FoundryWebUI.Services.Platform;
+
+namespace FoundryWebUI.Endpoints;
+
+public static class StatusEndpoints
+{
+    public static void Map(WebApplication app)
+    {
+        app.MapGet("/api/system-info", GetSystemInfo);
+        app.MapGet("/api/status", GetStatus);
+        app.MapPost("/api/reconnect", Reconnect);
+        app.MapPost("/api/foundry/start", StartFoundry);
+    }
+
+    private static IResult GetSystemInfo()
+    {
+        var gcInfo = GC.GetGCMemoryInfo();
+        var totalRamBytes = gcInfo.TotalAvailableMemoryBytes;
+        var totalRamMb = totalRamBytes / (1024.0 * 1024.0);
+        var totalRamGb = totalRamMb / 1024.0;
+        return Results.Ok(new
+        {
+            totalRamMb = Math.Round(totalRamMb, 0),
+            totalRamGb = Math.Round(totalRamGb, 1),
+        });
+    }
+
+    private static async Task<IResult> GetStatus(IEnumerable<ILlmProvider> providers)
+    {
+        var tasks = providers.Select(p => p.GetStatusAsync());
+        var statuses = await Task.WhenAll(tasks);
+        return Results.Ok(statuses);
+    }
+
+    private static async Task<IResult> Reconnect(
+        IEnumerable<ILlmProvider> providers,
+        string provider = "foundry")
+    {
+        var p = providers.FirstOrDefault(pr =>
+            pr.ProviderName.Equals(provider, StringComparison.OrdinalIgnoreCase));
+        if (p is null)
+        {
+            return Results.NotFound(new { error = $"Provider '{provider}' not found" });
+        }
+
+        var status = await p.ReconnectAsync();
+        return Results.Ok(status);
+    }
+
+    private static async Task<IResult> StartFoundry(
+        IConfiguration configuration,
+        ILogger<Program> logger,
+        IEnumerable<ILlmProvider> providers,
+        CancellationToken cancellationToken)
+    {
+        if (!FoundryExecutable.TryFind(configuration, out var exePath))
+        {
+            return Results.NotFound(new
+            {
+                error = "Foundry Local binary not found.",
+                hint = OperatingSystem.IsMacOS()
+                    ? "Install from https://github.com/microsoft/Foundry-Local and ensure 'foundry' is on PATH."
+                    : "Install with: winget install Microsoft.FoundryLocal",
+            });
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = exePath,
+                ArgumentList = { "service", "start" },
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc is null)
+            {
+                return Results.Json(new { error = "Failed to start 'foundry service start'." }, statusCode: 500);
+            }
+
+            using var startTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            startTimeout.CancelAfter(TimeSpan.FromSeconds(60));
+            await proc.WaitForExitAsync(startTimeout.Token);
+
+            var stdout = await proc.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderr = await proc.StandardError.ReadToEndAsync(cancellationToken);
+            logger.LogInformation(
+                "foundry service start exited {Code}. stdout: {Stdout} stderr: {Stderr}",
+                proc.ExitCode, stdout.Trim(), stderr.Trim());
+
+            var foundry = providers.FirstOrDefault(pr =>
+                pr.ProviderName.Equals("foundry", StringComparison.OrdinalIgnoreCase));
+            ProviderStatus status;
+            if (foundry is null)
+            {
+                status = new ProviderStatus
+                {
+                    Provider = "foundry",
+                    IsAvailable = false,
+                    Error = "Foundry provider not registered.",
+                };
+            }
+            else
+            {
+                status = await foundry.ReconnectAsync();
+                var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+                while (!status.IsAvailable && DateTimeOffset.UtcNow < deadline)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    status = await foundry.GetStatusAsync();
+                }
+            }
+
+            return Results.Ok(new
+            {
+                started = proc.ExitCode == 0,
+                exitCode = proc.ExitCode,
+                stdout = stdout.Trim(),
+                stderr = stderr.Trim(),
+                status,
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            return Results.Json(new { error = "Timed out waiting for 'foundry service start'." }, statusCode: 504);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to launch Foundry Local via {Path}", exePath);
+            return Results.Json(new { error = ex.Message }, statusCode: 500);
+        }
+    }
+}
