@@ -162,6 +162,35 @@ Edit `appsettings.json` (or pass an override file via `--config`). If the file s
 | `Foundry:ExecutablePath` | *(blank — discovered)* | Absolute path to the `foundry` binary. |
 | `FOUNDRYWEBUI_NO_BROWSER` (env) | *(unset)* | If `1`, suppress browser auto-launch. |
 
+## Model card data (`wwwroot/data/model-cards.json`)
+
+Context window sizes and capabilities for each model family are stored in a hand-maintained JSON file keyed by the catalog `alias`.
+
+```json
+{
+  "phi-4": {
+    "contextWindow": 16384,
+    "capabilities": ["tools"],
+    "source": "microsoft/phi-4"
+  },
+  "deepseek-r1-7b": {
+    "contextWindow": 131072,
+    "capabilities": ["reasoning"],
+    "source": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `contextWindow` | Maximum native context length in tokens (null for non-text models like ASR). |
+| `capabilities` | Feature tags: `"vision"`, `"speech"`, `"tools"`, `"reasoning"`, `"code"`. |
+| `source` | Canonical HuggingFace model page (`huggingface.co/{source}`) used as the reference for both context window and capabilities. |
+
+When a model has a matching entry, its capabilities are sourced from this file rather than inferred from catalog heuristics. Models without an entry fall back to inference from `task`/`displayName`.
+
+To add a new model, look up its official HuggingFace `config.json` for the native `max_position_embeddings` (context window) and its model card for pipeline tag and supported features, then add a new keyed entry.
+
 ## Per-user data locations
 
 | | macOS | Windows |
