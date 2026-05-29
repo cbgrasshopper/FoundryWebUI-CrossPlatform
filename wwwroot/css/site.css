@@ -818,15 +818,15 @@ th.sortable .sort-icon { font-size: 0.75em; opacity: 0.8; }
 
 /* ── Progress bar ───────────────────────────────────── */
 .progress-track {
-  height: 6px;
+  height: 22px;
   background: var(--bg-overlay);
-  border-radius: 3px;
+  border-radius: 11px;
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 3px;
+  border-radius: 11px;
   transition: width 0.3s ease;
 }
 .progress-fill.success { background: var(--green); }
