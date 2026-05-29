@@ -86,7 +86,7 @@ Example:
 - **System prompt library** — create, edit, delete reusable prompts.
 - **Logs page** — single **Foundry Local** tab (reads Foundry's log dir cross-platform).
 - **Auto-discovery** of the Foundry Local endpoint by reading Foundry's own log files.
-- **REST-only** — no CLI dependency; uses Foundry Local REST APIs directly.
+- **REST-first** — uses Foundry Local REST APIs directly. The `foundry` CLI is invoked only as a fallback for endpoint discovery and to start the service from the UI.
 - **Dark theme** Bootstrap 5 UI.
 
 ## Architecture
@@ -141,7 +141,7 @@ Example:
 
 ## Configuration
 
-Edit `appsettings.json` (or pass an override file via `--config`):
+Edit `appsettings.json` (or pass an override file via `--config`). If the file specified by `--config` does not exist, startup fails immediately with a `FileNotFoundException`.
 
 ```json
 {
@@ -167,7 +167,7 @@ Edit `appsettings.json` (or pass an override file via `--config`):
 | | macOS | Windows |
 |---|---|---|
 | Settings (`system-prompts.json`) | `~/Library/Application Support/FoundryWebUI-X/` | `%LOCALAPPDATA%\FoundryWebUI-X\` |
-| Logs (`app-YYYYMMDD.log`) | `~/Library/Logs/FoundryWebUI-X/` | `%LOCALAPPDATA%\FoundryWebUI-X\logs\` |
+| Logs (`app-YYYYMMDD.log`) | `~/Library/Application Support/FoundryWebUI-X/logs/` | `%LOCALAPPDATA%\FoundryWebUI-X\logs\` |
 
 These directories are created on first launch.
 
@@ -190,7 +190,7 @@ dotnet run --project tests/FoundryWebUI-X.E2ETests/FoundryWebUI-X.E2ETests.cspro
 Test stack:
 
 - **[TUnit](https://tunit.dev)** — execution engine for all three projects. Do **not** add `Microsoft.NET.Test.Sdk`, xUnit, NUnit, MSTest, or coverlet.
-- **[Imposter](https://themidnightgospel.github.io/Imposter/latest/)** — interface mocks where useful.
+- **`TestHttpMessageHandler`** — custom stub handler for HTTP mocking in unit and integration tests.
 - **`WebApplicationFactory<Program>`** — integration tests via in-memory TestServer.
 - **Microsoft.Playwright** (Chromium) — E2E smoke tests over a real Kestrel host with a stubbed Foundry server.
 

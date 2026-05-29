@@ -174,6 +174,7 @@ public sealed class Program
         builder.Services.AddSingleton<ModelDeletionService>();
         builder.Services.AddSingleton<FoundryLocalService>();
 
+        builder.Services.AddSingleton<ApplicationVersion>();
         builder.Services.AddSingleton<ContextWindowLookup>();
         builder.Services.AddSingleton<SystemPromptStore>();
         builder.Services.AddSingleton<InMemoryLogReader>();

@@ -1,3 +1,5 @@
+> **Superseded by [`amp_code_review.md`](amp_code_review.md).**
+
 # Code Review: FoundryWebUI-X
 
 > Review date: 2026-05-28

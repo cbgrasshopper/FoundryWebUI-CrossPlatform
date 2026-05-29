@@ -18,6 +18,7 @@
         CS8424  await yield warnings on disabled streams
         CA1031  Catch general exception (intentional)
         CA1303  Localizable string literals (single locale)
+        CA1305  String formatting without IFormatProvider (single locale)
         CA1310  StartsWith without StringComparison (legacy chat parser)
         CA1515  Internal-by-default (Razor requires public)
         CA1716  Identifier matches keyword (e.g. Property "Error")
