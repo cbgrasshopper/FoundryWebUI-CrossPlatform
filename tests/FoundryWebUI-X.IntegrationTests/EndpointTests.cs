@@ -95,20 +95,16 @@ public class EndpointTests
     }
 
     [Test]
-    public async Task Logs_AppEndpoint_ReturnsEntries()
+    public async Task Logs_FoundryEndpoint_ReturnsOk()
     {
         using var factory = new FoundryWebUIFactory();
         using var client = factory.CreateClient();
 
-        // Generate some log traffic.
-        await client.GetAsync("/api/system-info");
-        await client.GetAsync("/api/system-info");
-
-        var resp = await client.GetAsync("/api/logs/app?lines=50");
+        var resp = await client.GetAsync("/api/logs/foundry?lines=50");
         await Assert.That(resp.StatusCode).IsEqualTo(HttpStatusCode.OK);
 
         var payload = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        await Assert.That(payload.GetProperty("source").GetString()).IsEqualTo("app");
+        await Assert.That(payload.GetProperty("source").GetString()).IsEqualTo("foundry");
     }
 
     [Test]

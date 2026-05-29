@@ -12,7 +12,6 @@ public class ChatRequest
 {
     public string Model { get; set; } = string.Empty;
     public List<ChatMessage> Messages { get; set; } = new();
-    public bool Stream { get; set; } = true;
     public double Temperature { get; set; } = 0.7;
     [JsonPropertyName("max_tokens")]
     public int? MaxTokens { get; set; }
@@ -32,7 +31,7 @@ public class ModelInfo
     public string? Description { get; set; }
     public long? Size { get; set; }
     public string? Status { get; set; } // "available", "downloaded", "loaded"
-    public string Provider { get; set; } = string.Empty; // "foundry" or "ollama"
+    public string Provider { get; set; } = string.Empty;
     public string? ParameterSize { get; set; }
     public string? Family { get; set; }
     public double? EstimatedRamMb { get; set; }
@@ -44,7 +43,6 @@ public class ModelInfo
 public class DownloadRequest
 {
     public string ModelId { get; set; } = string.Empty;
-    public string Provider { get; set; } = string.Empty;
 }
 
 public class DownloadProgress

@@ -177,7 +177,6 @@ public sealed class Program
         builder.Services.AddSingleton<ApplicationVersion>();
         builder.Services.AddSingleton<ContextWindowLookup>();
         builder.Services.AddSingleton<SystemPromptStore>();
-        builder.Services.AddSingleton<InMemoryLogReader>();
         builder.Services.AddHostedService<BrowserLauncher>();
     }
 }

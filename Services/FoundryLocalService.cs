@@ -2,7 +2,7 @@ using FoundryWebUI.Models;
 
 namespace FoundryWebUI.Services;
 
-public class FoundryLocalService
+public sealed class FoundryLocalService
 {
     private readonly EndpointDiscoveryService _endpoints;
     private readonly ModelCatalogService _models;

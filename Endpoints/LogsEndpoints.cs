@@ -1,4 +1,3 @@
-using FoundryWebUI.Services;
 using FoundryWebUI.Services.Platform;
 
 namespace FoundryWebUI.Endpoints;
@@ -12,7 +11,6 @@ public static class LogsEndpoints
 
     private static IResult GetLogs(
         string source,
-        InMemoryLogReader logReader,
         ILogger<Program> logger,
         int lines = 500)
     {
@@ -21,8 +19,6 @@ public static class LogsEndpoints
         {
             return source.ToLowerInvariant() switch
             {
-                "app" => Results.Ok(GetAppLogs(logReader, lines)),
-                "stdout" => Results.Ok(ReadFileLogs(UserPaths.LogsDir, ["app-*.log"], "stdout", lines)),
                 "foundry" => Results.Ok(ReadFileLogs(UserPaths.FoundryLogsDir, ["*.log", "*.txt"], "foundry", lines)),
                 _ => Results.BadRequest(new { error = $"Unknown log source: {source}" }),
             };
@@ -32,12 +28,6 @@ public static class LogsEndpoints
             logger.LogError(ex, "Failed to read logs for source {Source}", source);
             return Results.Json(new { error = ex.Message }, statusCode: 500);
         }
-    }
-
-    private static object GetAppLogs(InMemoryLogReader logReader, int lines)
-    {
-        var entries = logReader.GetRecent(lines);
-        return new { source = "app", entries };
     }
 
     private static object ReadFileLogs(string logDir, string[] patterns, string source, int lines)

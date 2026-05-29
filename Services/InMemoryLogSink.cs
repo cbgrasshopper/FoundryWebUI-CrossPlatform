@@ -31,7 +31,7 @@ public sealed class InMemoryLogSink : ILogEventSink
         }
     }
 
-    public IReadOnlyList<InMemoryLogReader.LogEntry> Snapshot(int max)
+    public IReadOnlyList<LogEntry> Snapshot(int max)
     {
         if (max < 1)
         {
@@ -43,7 +43,7 @@ public sealed class InMemoryLogSink : ILogEventSink
             ? snapshot[^max..]
             : snapshot;
 
-        var result = new List<InMemoryLogReader.LogEntry>(slice.Length);
+        var result = new List<LogEntry>(slice.Length);
         foreach (var e in slice)
         {
             string? category = null;
@@ -52,7 +52,7 @@ public sealed class InMemoryLogSink : ILogEventSink
                 category = ctx.ToString().Trim('"');
             }
 
-            result.Add(new InMemoryLogReader.LogEntry(
+            result.Add(new LogEntry(
                 e.Timestamp.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture),
                 e.Level.ToString().ToLowerInvariant(),
                 category,
@@ -62,4 +62,11 @@ public sealed class InMemoryLogSink : ILogEventSink
 
         return result;
     }
+
+    public sealed record LogEntry(
+        string Time,
+        string Level,
+        string? Category,
+        string Message,
+        string? Exception);
 }
