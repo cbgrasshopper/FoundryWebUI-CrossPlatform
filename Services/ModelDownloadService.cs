@@ -9,6 +9,8 @@ namespace FoundryWebUI.Services;
 
 public sealed class ModelDownloadService
 {
+    private static readonly Regex DownloadPercentRegex = new(@"Total\s+([\d.]+)%", RegexOptions.Compiled);
+
     private readonly EndpointDiscoveryService _endpoints;
     private readonly ILogger<ModelDownloadService> _logger;
     private readonly ModelCatalogService _models;
@@ -99,7 +101,7 @@ public sealed class ModelDownloadService
                 lineBuffer.Append(buffer, 0, read);
                 var text = lineBuffer.ToString();
 
-                var matches = Regex.Matches(text, @"Total\s+([\d.]+)%");
+                var matches = DownloadPercentRegex.Matches(text);
                 if (matches.Count > 0)
                 {
                     var latestMatch = matches[^1];
