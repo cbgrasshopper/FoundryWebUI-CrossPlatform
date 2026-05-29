@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 
 using FoundryWebUI.Models;
+using FoundryWebUI.Services.Sse;
 
 namespace FoundryWebUI.Services;
 
@@ -82,40 +83,16 @@ public sealed class ChatStreamingService
         }
 
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var reader = new System.IO.StreamReader(stream);
         bool receivedAnyContent = false;
         bool connectionClosed = false;
 
-        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        await foreach (var jsonData in SseEventParser.ParseAsync(stream, _logger, cancellationToken))
         {
-            string? line;
-            try
+            if (jsonData == "[CONNECTION_CLOSED]")
             {
-                line = await reader.ReadLineAsync(cancellationToken);
-            }
-            catch (IOException ex)
-            {
-                _logger.LogWarning(ex, "Connection closed during chat stream");
                 connectionClosed = true;
                 break;
             }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogWarning(ex, "HTTP error during chat stream");
-                connectionClosed = true;
-                break;
-            }
-            if (string.IsNullOrEmpty(line)) continue;
-
-            _logger.LogDebug("Stream line: {Line}", line);
-
-            string? jsonData = null;
-            if (line.StartsWith("data: "))
-                jsonData = line["data: ".Length..];
-            else if (line.StartsWith("{"))
-                jsonData = line;
-            else
-                continue;
 
             if (jsonData == "[DONE]")
             {
@@ -138,31 +115,8 @@ public sealed class ChatStreamingService
             {
                 if (doc.RootElement.TryGetProperty("error", out var errProp))
                 {
-                    string errMsg;
-                    string? errCode = null;
-                    if (errProp.ValueKind == JsonValueKind.String)
-                    {
-                        errMsg = errProp.GetString() ?? "Unknown error";
-                    }
-                    else if (errProp.ValueKind == JsonValueKind.Object)
-                    {
-                        errCode = errProp.TryGetProperty("code", out var codeProp) ? codeProp.GetString() : null;
-                        var errType = errProp.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : null;
-                        errMsg = errProp.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
-                        if (string.IsNullOrEmpty(errMsg))
-                            errMsg = errCode ?? errType ?? "Unknown error";
-                    }
-                    else
-                    {
-                        errMsg = "Unknown error";
-                    }
-
-                    yield return new ChatResponse
-                    {
-                        Content = "",
-                        Done = true,
-                        Error = errCode ?? errMsg
-                    };
+                    var (code, message) = ChatErrorMapper.Map(errProp);
+                    yield return new ChatResponse { Content = "", Done = true, Error = code ?? message };
                     yield break;
                 }
 

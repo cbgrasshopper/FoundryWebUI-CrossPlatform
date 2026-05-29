@@ -66,117 +66,114 @@ public sealed class ModelDownloadService
         _logger.LogInformation("Starting REST download of {Model}: {Body}", modelId, jsonBody);
         yield return new DownloadProgress { ModelId = modelId, Status = "downloading", Percent = 0 };
 
-        var channel = System.Threading.Channels.Channel.CreateUnbounded<DownloadProgress>();
-
-        _ = Task.Run(async () =>
+        HttpResponseMessage? response = null;
+        try
         {
-            HttpResponseMessage? response = null;
-            try
+            var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{endpoint}/openai/download")
             {
-                var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-                var request = new HttpRequestMessage(HttpMethod.Post, $"{endpoint}/openai/download")
-                {
-                    Content = content
-                };
-                response = await _endpoints.HttpClient.SendAsync(
-                    request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                Content = content
+            };
+            response = await _endpoints.HttpClient.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
-                if (!response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
+            {
+                var errBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                yield return new DownloadProgress { ModelId = modelId, Status = $"error: HTTP {response.StatusCode} — {errBody}" };
+                yield break;
+            }
+
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var reader = new StreamReader(stream);
+            var buffer = new char[4096];
+            var lineBuffer = new StringBuilder();
+            double lastPercent = 0;
+            var started = DateTime.UtcNow;
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                int read = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+                if (read == 0) break;
+
+                lineBuffer.Append(buffer, 0, read);
+                var text = lineBuffer.ToString();
+
+                var matches = Regex.Matches(text, @"Total\s+([\d.]+)%");
+                if (matches.Count > 0)
                 {
-                    var errBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    await channel.Writer.WriteAsync(
-                        new DownloadProgress { ModelId = modelId, Status = $"error: HTTP {response.StatusCode} — {errBody}" });
-                    return;
+                    var latestMatch = matches[^1];
+                    if (double.TryParse(latestMatch.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var percent))
+                    {
+                        lastPercent = percent;
+                        var elapsed = (DateTime.UtcNow - started).TotalSeconds;
+                        yield return new DownloadProgress
+                        {
+                            ModelId = modelId,
+                            Status = $"downloading ({TimeSpan.FromSeconds(elapsed):mm\\:ss} elapsed)",
+                            Percent = percent
+                        };
+                    }
                 }
 
-                var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                var reader = new StreamReader(stream);
-                var buffer = new char[4096];
-                var lineBuffer = new StringBuilder();
-                double lastPercent = 0;
-                var started = DateTime.UtcNow;
-
-                while (!cancellationToken.IsCancellationRequested)
+                if (text.Contains("\"success\"") || text.Contains("\"Success\""))
                 {
-                    int read = await reader.ReadAsync(buffer, 0, buffer.Length);
-                    if (read == 0) break;
-
-                    lineBuffer.Append(buffer, 0, read);
-                    var text = lineBuffer.ToString();
-
-                    var matches = Regex.Matches(text, @"Total\s+([\d.]+)%");
-                    if (matches.Count > 0)
+                    var jsonStart = text.IndexOf('{');
+                    if (jsonStart >= 0)
                     {
-                        var latestMatch = matches[^1];
-                        if (double.TryParse(latestMatch.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var percent))
+                        var jsonStr = text[jsonStart..];
+                        var (parsed, success, errMsg) = TryParseCompletion(jsonStr);
+                        if (parsed)
                         {
-                            lastPercent = percent;
-                            var elapsed = (DateTime.UtcNow - started).TotalSeconds;
-                            await channel.Writer.WriteAsync(new DownloadProgress
-                            {
-                                ModelId = modelId,
-                                Status = $"downloading ({TimeSpan.FromSeconds(elapsed):mm\\:ss} elapsed)",
-                                Percent = percent
-                            });
+                            if (success)
+                                yield return new DownloadProgress { ModelId = modelId, Status = "complete", Percent = 100 };
+                            else
+                                yield return new DownloadProgress { ModelId = modelId, Status = $"error: {errMsg}" };
+                            yield break;
                         }
                     }
-
-                    if (text.Contains("\"success\"") || text.Contains("\"Success\""))
-                    {
-                        var jsonStart = text.IndexOf('{');
-                        if (jsonStart >= 0)
-                        {
-                            var jsonStr = text[jsonStart..];
-                            try
-                            {
-                                using var doc = JsonDocument.Parse(jsonStr);
-                                var success = false;
-                                if (doc.RootElement.TryGetProperty("success", out var s))
-                                    success = s.GetBoolean();
-                                else if (doc.RootElement.TryGetProperty("Success", out var s2))
-                                    success = s2.GetBoolean();
-
-                                if (success)
-                                    await channel.Writer.WriteAsync(new DownloadProgress { ModelId = modelId, Status = "complete", Percent = 100 });
-                                else
-                                {
-                                    var errMsg = doc.RootElement.TryGetProperty("errorMessage", out var e) ? e.GetString()
-                                        : doc.RootElement.TryGetProperty("ErrorMessage", out var e2) ? e2.GetString()
-                                        : "Unknown error";
-                                    await channel.Writer.WriteAsync(new DownloadProgress { ModelId = modelId, Status = $"error: {errMsg}" });
-                                }
-                                return;
-                            }
-                            catch { }
-                        }
-                    }
-
-                    var lastNewline = text.LastIndexOf('\n');
-                    if (lastNewline >= 0)
-                        lineBuffer = new StringBuilder(text[(lastNewline + 1)..]);
                 }
 
-                if (lastPercent >= 99)
-                    await channel.Writer.WriteAsync(new DownloadProgress { ModelId = modelId, Status = "complete", Percent = 100 });
-                else
-                    await channel.Writer.WriteAsync(new DownloadProgress { ModelId = modelId, Status = $"error: download stream ended at {lastPercent:F1}%" });
+                var lastNewline = text.LastIndexOf('\n');
+                if (lastNewline >= 0)
+                    lineBuffer = new StringBuilder(text[(lastNewline + 1)..]);
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Download stream error");
-                await channel.Writer.WriteAsync(new DownloadProgress { ModelId = modelId, Status = $"error: {ex.Message}" });
-            }
-            finally
-            {
-                response?.Dispose();
-                channel.Writer.Complete();
-            }
-        }, cancellationToken);
 
-        await foreach (var progress in channel.Reader.ReadAllAsync(cancellationToken))
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (lastPercent >= 99)
+                yield return new DownloadProgress { ModelId = modelId, Status = "complete", Percent = 100 };
+            else
+                yield return new DownloadProgress { ModelId = modelId, Status = $"error: download stream ended at {lastPercent:F1}%" };
+        }
+        finally
         {
-            yield return progress;
+            response?.Dispose();
+        }
+    }
+
+    private static (bool Parsed, bool Success, string? ErrorMessage) TryParseCompletion(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var success = false;
+            if (doc.RootElement.TryGetProperty("success", out var s))
+                success = s.GetBoolean();
+            else if (doc.RootElement.TryGetProperty("Success", out var s2))
+                success = s2.GetBoolean();
+
+            if (success)
+                return (true, true, null);
+
+            var errMsg = doc.RootElement.TryGetProperty("errorMessage", out var e) ? e.GetString()
+                : doc.RootElement.TryGetProperty("ErrorMessage", out var e2) ? e2.GetString()
+                : "Unknown error";
+            return (true, false, errMsg);
+        }
+        catch
+        {
+            return (false, false, null);
         }
     }
 }
