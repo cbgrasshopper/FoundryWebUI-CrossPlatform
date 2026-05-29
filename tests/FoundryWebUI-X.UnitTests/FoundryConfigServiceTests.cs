@@ -89,8 +89,13 @@ public class FoundryConfigServiceTests
 
         // Verify the config was written with the new path
         var written = fs.GetWrittenContent(configPath);
-        await Assert.That(written).Contains(ModelsDir);
-        await Assert.That(written).Contains("cacheDirectoryPath");
+        await Assert.That(written).IsNotNull();
+        var doc = System.Text.Json.JsonDocument.Parse(written!);
+        var cacheDir = doc.RootElement
+            .GetProperty("serviceSettings")
+            .GetProperty("cacheDirectoryPath")
+            .GetString();
+        await Assert.That(cacheDir).IsEqualTo(ModelsDir);
     }
 
     [Test]
