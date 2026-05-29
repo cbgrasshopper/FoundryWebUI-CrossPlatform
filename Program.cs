@@ -168,6 +168,7 @@ public sealed class Program
 
         builder.Services.AddHttpClient<EndpointDiscoveryService>()
             .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromHours(2));
+        builder.Services.AddSingleton<IFileSystem, RealFileSystem>();
         builder.Services.AddSingleton<ModelCatalogService>();
         builder.Services.AddSingleton<ChatStreamingService>();
         builder.Services.AddSingleton<ModelDownloadService>();

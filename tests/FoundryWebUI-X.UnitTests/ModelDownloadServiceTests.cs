@@ -218,18 +218,25 @@ public class ModelDownloadServiceTests
         handler.When(HttpMethod.Post, "/openai/download", HttpStatusCode.OK, "Total  30.0% Downloading");
 
         using var cts = new CancellationTokenSource();
-        cts.CancelAfter(50);
+        cts.Cancel(); // Cancel immediately
 
+        var results = new List<DownloadProgress>();
+        var threw = false;
         try
         {
             await foreach (var p in svc.DownloadModelAsync("phi-3.5-mini", cts.Token))
             {
+                results.Add(p);
             }
         }
         catch (OperationCanceledException)
         {
-            // Expected when the cancellation fires during streaming.
+            threw = true;
         }
+
+        // Either the method throws OperationCanceledException or it completes without
+        // ever yielding a "complete" status.
+        await Assert.That(threw || results.All(r => r.Status != "complete")).IsTrue();
     }
 
     [Test]

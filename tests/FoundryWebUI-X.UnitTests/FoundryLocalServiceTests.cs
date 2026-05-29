@@ -43,7 +43,7 @@ public class FoundryLocalServiceTests
         var download = new ModelDownloadService(
             endpoints, NullLogger<ModelDownloadService>.Instance, models);
         var deletion = new ModelDeletionService(
-            endpoints, NullLogger<ModelDeletionService>.Instance);
+            endpoints, new RealFileSystem(), NullLogger<ModelDeletionService>.Instance);
 
         var svc = new FoundryLocalService(endpoints, models, chat, download, deletion);
         return (svc, handler);
