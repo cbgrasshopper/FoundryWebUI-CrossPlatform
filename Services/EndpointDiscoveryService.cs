@@ -24,6 +24,9 @@ public sealed class EndpointDiscoveryService : IDisposable
         @"Now listening on: http://127\.0\.0\.1:(\d+)",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
+    /// <summary>Default fallback endpoint when all discovery methods fail.</summary>
+    public const string DefaultFallbackEndpoint = "http://localhost:5272";
+
     public HttpClient HttpClient => _httpClient;
 
     public EndpointDiscoveryService(
@@ -99,14 +102,15 @@ public sealed class EndpointDiscoveryService : IDisposable
             _endpointDiscoveryLock.Release();
         }
 
-        return "http://localhost:5272";
+        return DefaultFallbackEndpoint;
     }
 
-    private async Task<bool> ProbePortAsync(int port)
+    private async Task<bool> ProbePortAsync(int port, CancellationToken callerToken = default)
     {
         try
         {
-            using var cts = new CancellationTokenSource(5000);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+            cts.CancelAfter(5000);
             var resp = await _httpClient.GetAsync($"http://localhost:{port}/openai/status", cts.Token);
             return resp.IsSuccessStatusCode;
         }

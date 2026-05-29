@@ -7,11 +7,6 @@ namespace FoundryWebUI.Endpoints;
 
 public static class ModelsEndpoints
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
     public static void Map(WebApplication app)
     {
         app.MapGet("/api/models", GetModels);
@@ -109,14 +104,14 @@ public static class ModelsEndpoints
         {
             await foreach (var progress in provider.DownloadModelAsync(request.ModelId, context.RequestAborted))
             {
-                var json = JsonSerializer.Serialize(progress, JsonOptions);
-                await WriteSSE(context, "progress", json);
+                var json = JsonSerializer.Serialize(progress, EndpointHelpers.JsonOptions);
+                await EndpointHelpers.WriteSseAsync(context, "progress", json);
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Download error");
-            await WriteSSE(context, "error", JsonSerializer.Serialize(new { error = ex.Message }));
+            await EndpointHelpers.WriteSseAsync(context, "error", JsonSerializer.Serialize(new { error = ex.Message }));
         }
     }
 
@@ -146,11 +141,5 @@ public static class ModelsEndpoints
             logger.LogError(ex, "Delete failed for {ModelId}", modelId);
             return Results.Json(new { error = $"Failed to remove model '{modelId}': {ex.Message}" }, statusCode: 500);
         }
-    }
-
-    private static async Task WriteSSE(HttpContext context, string eventType, string data)
-    {
-        await context.Response.WriteAsync($"event: {eventType}\ndata: {data}\n\n");
-        await context.Response.Body.FlushAsync();
     }
 }

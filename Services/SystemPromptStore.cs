@@ -6,7 +6,7 @@ namespace FoundryWebUI.Services;
 
 public sealed class SystemPrompt
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
     public string Name { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public bool IsDefault { get; set; }

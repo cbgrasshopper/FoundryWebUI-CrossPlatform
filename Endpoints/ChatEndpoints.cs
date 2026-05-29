@@ -7,11 +7,6 @@ namespace FoundryWebUI.Endpoints;
 
 public static class ChatEndpoints
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
     public static void Map(WebApplication app)
     {
         app.MapPost("/api/chat", Chat);
@@ -32,8 +27,8 @@ public static class ChatEndpoints
         {
             await foreach (var chunk in provider.StreamChatAsync(request, context.RequestAborted))
             {
-                var json = JsonSerializer.Serialize(chunk, JsonOptions);
-                await WriteSSE(context, "message", json);
+                var json = JsonSerializer.Serialize(chunk, EndpointHelpers.JsonOptions);
+                await EndpointHelpers.WriteSseAsync(context, "message", json);
             }
         }
         catch (OperationCanceledException)
@@ -42,17 +37,11 @@ public static class ChatEndpoints
         catch (Exception ex)
         {
             logger.LogError(ex, "Chat error");
-            await WriteSSE(context, "message", JsonSerializer.Serialize(new
+            await EndpointHelpers.WriteSseAsync(context, "message", JsonSerializer.Serialize(new
             {
                 content = $"\n\n⚠️ Error: {ex.Message}",
                 done = true,
             }));
         }
-    }
-
-    private static async Task WriteSSE(HttpContext context, string eventType, string data)
-    {
-        await context.Response.WriteAsync($"event: {eventType}\ndata: {data}\n\n");
-        await context.Response.Body.FlushAsync();
     }
 }
