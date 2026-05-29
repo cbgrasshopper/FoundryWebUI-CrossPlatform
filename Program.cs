@@ -1,4 +1,6 @@
 using System.CommandLine;
+using System.Net;
+using System.Net.Sockets;
 
 using FoundryWebUI.Endpoints;
 using FoundryWebUI.Services;
@@ -75,6 +77,26 @@ public sealed class Program
             .MinimumLevel.Information()
             .WriteTo.Console()
             .CreateBootstrapLogger();
+
+        // Check if the target port is already in use so we can give a friendly error
+        // instead of letting Kestrel throw an ugly stack trace.
+        if (!IPAddress.TryParse(host, out var ip))
+        {
+            ip = IPAddress.Any;
+        }
+
+        try
+        {
+            using var listener = new TcpListener(ip, port);
+            listener.Start();
+            listener.Stop();
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+        {
+            Log.Fatal("Port {Port} is already in use — FoundryWebUI-X appears to be running already on http://{Host}:{Port}. Stop that instance first.", port, host, port);
+            await Log.CloseAndFlushAsync();
+            return 1;
+        }
 
         try
         {
