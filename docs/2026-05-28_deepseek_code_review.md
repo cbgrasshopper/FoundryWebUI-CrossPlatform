@@ -186,7 +186,7 @@ The `ConfigureServices` method in `Program.cs` (38 lines, line 140) is concise a
 - **XML doc comments** on most public methods and many private ones — the team takes documentation seriously
 - **Inline comments** are descriptive and explain *why* decisions were made (e.g., the semaphore motivation, the catalog cache reasoning, the provider-type override)
 - **`.editorconfig`** has clear rationale comments for each suppressed diagnostic
-- **`context-windows.json`** has a `_comment` field explaining the data sources
+- **`model-cards.json`** has a `_comment` field explaining the data sources
 
 ### Issues
 

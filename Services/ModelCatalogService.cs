@@ -90,18 +90,22 @@ public sealed class ModelCatalogService
                     var supportsTools = model.TryGetProperty("supportsToolCalling", out var stc)
                         && stc.ValueKind == JsonValueKind.True;
 
-                    var caps = new List<string>();
-                    if (string.Equals(taskStr, "vision-language-chat", StringComparison.OrdinalIgnoreCase))
-                        caps.Add("vision");
-                    if (string.Equals(taskStr, "automatic-speech-recognition", StringComparison.OrdinalIgnoreCase))
-                        caps.Add("speech");
-                    if (supportsTools)
-                        caps.Add("tools");
-                    if (displayName.Contains("reasoning", StringComparison.OrdinalIgnoreCase)
-                        || displayName.Contains("r1-distill", StringComparison.OrdinalIgnoreCase))
-                        caps.Add("reasoning");
-                    if (displayName.Contains("coder", StringComparison.OrdinalIgnoreCase))
-                        caps.Add("code");
+                    var caps = alias != null ? _contextWindows.GetCapabilities(alias) : null;
+                    if (caps == null)
+                    {
+                        caps = [];
+                        if (string.Equals(taskStr, "vision-language-chat", StringComparison.OrdinalIgnoreCase))
+                            caps.Add("vision");
+                        if (string.Equals(taskStr, "automatic-speech-recognition", StringComparison.OrdinalIgnoreCase))
+                            caps.Add("speech");
+                        if (supportsTools)
+                            caps.Add("tools");
+                        if (displayName.Contains("reasoning", StringComparison.OrdinalIgnoreCase)
+                            || displayName.Contains("r1-distill", StringComparison.OrdinalIgnoreCase))
+                            caps.Add("reasoning");
+                        if (displayName.Contains("coder", StringComparison.OrdinalIgnoreCase))
+                            caps.Add("code");
+                    }
 
                     models.Add(new ModelInfo
                     {
