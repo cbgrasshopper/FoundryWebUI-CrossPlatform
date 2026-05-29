@@ -1,12 +1,8 @@
 using System.Net;
 
 using FoundryWebUI.Services.Platform;
-
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace FoundryWebUI.E2ETests.Helpers;
 

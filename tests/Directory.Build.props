@@ -18,8 +18,8 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
 
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <NoWarn>$(NoWarn);CS1591;CS8424;CA1707;CA2007</NoWarn>
 
     <DOTNET_CLI_TELEMETRY_OPTOUT>1</DOTNET_CLI_TELEMETRY_OPTOUT>

@@ -3,8 +3,6 @@ using System.Net;
 using FoundryWebUI.Models;
 using FoundryWebUI.Services;
 using FoundryWebUI.TestInfrastructure;
-
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 

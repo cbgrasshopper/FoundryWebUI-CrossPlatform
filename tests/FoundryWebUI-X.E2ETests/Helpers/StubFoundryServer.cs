@@ -1,10 +1,5 @@
 using System.Net;
 
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Hosting;
-
 namespace FoundryWebUI.E2ETests.Helpers;
 
 /// <summary>
@@ -49,6 +44,31 @@ public sealed class StubFoundryServer : IAsyncDisposable
                 runtime = new { deviceType = "cpu" },
             },
         }));
+
+        // Minimal SSE chat completions stub — streams a short reply and signals done.
+        app.MapPost("/openai/chat/completions", async (HttpContext ctx) =>
+        {
+            ctx.Response.ContentType = "text/event-stream";
+            ctx.Response.Headers.CacheControl = "no-cache";
+            ctx.Response.Headers.Connection = "keep-alive";
+            ctx.Response.Headers["X-Accel-Buffering"] = "no";
+
+            var chunks = new[]
+            {
+                """{"choices":[{"delta":{"content":"Hello"}}]}""",
+                """{"choices":[{"delta":{"content":" from"}}]}""",
+                """{"choices":[{"delta":{"content":" stub!"}}]}""",
+            };
+
+            foreach (var chunk in chunks)
+            {
+                await ctx.Response.WriteAsync($"data: {chunk}\n\n");
+                await ctx.Response.Body.FlushAsync();
+            }
+
+            await ctx.Response.WriteAsync("data: [DONE]\n\n");
+            await ctx.Response.Body.FlushAsync();
+        });
 
         await app.StartAsync();
 

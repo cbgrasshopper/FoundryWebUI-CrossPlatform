@@ -1,7 +1,6 @@
 using FoundryWebUI.Services;
 
 using Serilog;
-using Serilog.Events;
 
 namespace FoundryWebUI.UnitTests;
 

@@ -44,7 +44,11 @@ jobs:
         run: dotnet restore tests/FoundryWebUI-X.E2ETests/FoundryWebUI-X.E2ETests.csproj
 
       - name: Format check
-        run: dotnet format FoundryWebUI-X.csproj --verify-no-changes --no-restore
+        run: |
+          dotnet format FoundryWebUI-X.csproj --verify-no-changes --no-restore
+          dotnet format tests/FoundryWebUI-X.UnitTests/FoundryWebUI-X.UnitTests.csproj --verify-no-changes --no-restore
+          dotnet format tests/FoundryWebUI-X.IntegrationTests/FoundryWebUI-X.IntegrationTests.csproj --verify-no-changes --no-restore
+          dotnet format tests/FoundryWebUI-X.E2ETests/FoundryWebUI-X.E2ETests.csproj --verify-no-changes --no-restore
 
       - name: Build (Release)
         run: |

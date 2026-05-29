@@ -5,14 +5,9 @@ namespace FoundryWebUI.UnitTests;
 public class ModelDirectoryMatcherTests
 {
     /// <summary>Simple in-memory filesystem for testing directory matching logic.</summary>
-    private sealed class FakeFileSystem : IFileSystem
+    private sealed class FakeFileSystem(IEnumerable<string> dirs) : IFileSystem
     {
-        private readonly HashSet<string> _dirs;
-
-        public FakeFileSystem(IEnumerable<string> dirs)
-        {
-            _dirs = new HashSet<string>(dirs, StringComparer.OrdinalIgnoreCase);
-        }
+        private readonly HashSet<string> _dirs = new HashSet<string>(dirs, StringComparer.OrdinalIgnoreCase);
 
         public bool DirectoryExists(string path) => _dirs.Contains(Normalize(path));
 
@@ -20,10 +15,9 @@ public class ModelDirectoryMatcherTests
         {
             var norm = Normalize(path);
             var prefix = norm.EndsWith('/') ? norm : norm + '/';
-            return _dirs
+            return [.. _dirs
                 .Where(d => d.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                            && !d[prefix.Length..].Contains('/'))
-                .ToArray();
+                            && !d[prefix.Length..].Contains('/'))];
         }
 
         public void DeleteDirectory(string path, bool recursive)

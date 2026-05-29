@@ -1,5 +1,3 @@
-using System.Net;
-
 using FoundryWebUI.Services;
 using FoundryWebUI.TestInfrastructure;
 
@@ -20,7 +18,7 @@ public class EndpointDiscoveryServiceTests
     {
         var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(config ?? new Dictionary<string, string?>())
+            .AddInMemoryCollection(config ?? [])
             .Build();
         return new EndpointDiscoveryService(
             http, NullLogger<EndpointDiscoveryService>.Instance, configuration);
