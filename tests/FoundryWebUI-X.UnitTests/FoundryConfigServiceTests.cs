@@ -6,6 +6,17 @@ namespace FoundryWebUI.UnitTests;
 
 public class FoundryConfigServiceTests
 {
+    /// <summary>Returns an absolute path suitable for the current OS.</summary>
+    private static string TestAbsolutePath(string unixStylePath)
+    {
+        var relative = unixStylePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(relative);
+    }
+
+    /// <summary>All-zero address that passes validation.</summary>
+    private static readonly string ModelsDir = TestAbsolutePath("/opt/models");
+    private static readonly string NewCacheDir = TestAbsolutePath("/new/cache/path");
+
     /// <summary>In-memory filesystem for testing config operations.</summary>
     private sealed class FakeFileSystem : IFileSystem
     {
@@ -48,10 +59,10 @@ public class FoundryConfigServiceTests
     {
         var fs = new FakeFileSystem();
         // Ensure the target directory "exists" so we pass that check
-        fs.SeedDirectory("/opt/models");
+        fs.SeedDirectory(ModelsDir);
         var svc = CreateService(fs);
 
-        var result = await svc.SetCacheDirectoryAsync("/opt/models");
+        var result = await svc.SetCacheDirectoryAsync(ModelsDir);
 
         await Assert.That(result.Success).IsFalse();
         await Assert.That(result.StatusCode).IsEqualTo(500);
@@ -62,7 +73,7 @@ public class FoundryConfigServiceTests
     public async Task SetCacheDirectory_ValidPath_UpdatesConfig()
     {
         var fs = new FakeFileSystem();
-        fs.SeedDirectory("/opt/models");
+        fs.SeedDirectory(ModelsDir);
 
         var configPath = Services.Platform.UserPaths.FoundryConfigFile;
         var existingConfig = """{"serviceSettings":{"someOther":"value"}}""";
@@ -70,15 +81,15 @@ public class FoundryConfigServiceTests
 
         var svc = CreateService(fs);
 
-        var result = await svc.SetCacheDirectoryAsync("/opt/models");
+        var result = await svc.SetCacheDirectoryAsync(ModelsDir);
 
         await Assert.That(result.Success).IsTrue();
-        await Assert.That(result.Path).IsEqualTo("/opt/models");
+        await Assert.That(result.Path).IsEqualTo(ModelsDir);
         await Assert.That(result.Message).Contains("Restart the Foundry service");
 
         // Verify the config was written with the new path
         var written = fs.GetWrittenContent(configPath);
-        await Assert.That(written).Contains("/opt/models");
+        await Assert.That(written).Contains(ModelsDir);
         await Assert.That(written).Contains("cacheDirectoryPath");
     }
 
@@ -93,9 +104,9 @@ public class FoundryConfigServiceTests
 
         var svc = CreateService(fs);
 
-        var result = await svc.SetCacheDirectoryAsync("/new/cache/path");
+        var result = await svc.SetCacheDirectoryAsync(NewCacheDir);
 
         await Assert.That(result.Success).IsTrue();
-        await Assert.That(fs.DirectoryExists("/new/cache/path")).IsTrue();
+        await Assert.That(fs.DirectoryExists(NewCacheDir)).IsTrue();
     }
 }
