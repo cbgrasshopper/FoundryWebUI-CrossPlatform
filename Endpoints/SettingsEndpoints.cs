@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 using FoundryWebUI.Services;
 using FoundryWebUI.Services.Platform;
 
@@ -7,11 +5,6 @@ namespace FoundryWebUI.Endpoints;
 
 public static class SettingsEndpoints
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
     public static void Map(WebApplication app)
     {
         app.MapGet("/api/settings/cache-directory", GetCacheDirectory);
@@ -34,92 +27,23 @@ public static class SettingsEndpoints
 
     private static async Task<IResult> SetCacheDirectory(
         CacheDirectoryRequest request,
-        ILogger<Program> logger)
+        FoundryConfigService configService)
     {
         if (string.IsNullOrWhiteSpace(request.Path))
         {
             return Results.BadRequest(new { error = "Path is required" });
         }
 
-        var newPath = request.Path.Trim();
-        if (!Path.IsPathFullyQualified(newPath))
+        var result = await configService.SetCacheDirectoryAsync(request.Path.Trim());
+
+        if (!result.Success)
         {
-            return Results.BadRequest(new
-            {
-                error =
-                    "Path must be an absolute path (for example, /Users/me/FoundryModelCache or D:\\FoundryModelCache).",
-            });
+            return result.StatusCode == 400
+                ? Results.BadRequest(new { error = result.Error })
+                : Results.Json(new { error = result.Error }, statusCode: result.StatusCode);
         }
 
-        try
-        {
-            if (!Directory.Exists(newPath))
-            {
-                Directory.CreateDirectory(newPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            return Results.BadRequest(new { error = $"Cannot create directory: {ex.Message}" });
-        }
-
-        try
-        {
-            var configPath = UserPaths.FoundryConfigFile;
-            if (!System.IO.File.Exists(configPath))
-            {
-                return Results.Json(
-                    new
-                    {
-                        error =
-                            "Cannot find foundry.config.json. Ensure Foundry Local has been started at least once.",
-                    },
-                    statusCode: 500);
-            }
-
-            logger.LogInformation("Updating Foundry config at: {Path}", configPath);
-
-            var jsonText = await System.IO.File.ReadAllTextAsync(configPath);
-            using var doc = JsonDocument.Parse(jsonText);
-            var root = doc.RootElement;
-
-            var configObj = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonText, JsonOptions)
-                            ?? [];
-
-            var serviceSettings = new Dictionary<string, object>();
-            if (root.TryGetProperty("serviceSettings", out var ss))
-            {
-                foreach (var prop in ss.EnumerateObject())
-                {
-                    serviceSettings[prop.Name] = prop.Value.ValueKind switch
-                    {
-                        JsonValueKind.String => prop.Value.GetString()!,
-                        JsonValueKind.Number => prop.Value.TryGetInt32(out var i) ? i : prop.Value.GetDouble(),
-                        JsonValueKind.True => true,
-                        JsonValueKind.False => false,
-                        _ => prop.Value.GetRawText(),
-                    };
-                }
-            }
-            serviceSettings["cacheDirectoryPath"] = newPath;
-            configObj["serviceSettings"] = serviceSettings;
-
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            var updatedJson = JsonSerializer.Serialize(configObj, options);
-            await System.IO.File.WriteAllTextAsync(configPath, updatedJson);
-
-            logger.LogInformation("Cache directory changed to {Path} in {Config}", newPath, configPath);
-            return Results.Ok(new
-            {
-                path = newPath,
-                message = $"Cache directory updated to {newPath}. Restart the Foundry service for changes to take effect.",
-            });
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to update foundry.config.json");
-            return Results.Json(new { error = $"Failed to update Foundry config: {ex.Message}" }, statusCode: 500);
-        }
+        return Results.Ok(new { path = result.Path, message = result.Message });
     }
 }
 

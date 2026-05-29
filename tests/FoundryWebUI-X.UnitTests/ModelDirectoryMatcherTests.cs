@@ -31,6 +31,11 @@ public class ModelDirectoryMatcherTests
             _dirs.RemoveWhere(d => d.StartsWith(Normalize(path), StringComparison.OrdinalIgnoreCase));
         }
 
+        public void CreateDirectory(string path) => _dirs.Add(Normalize(path));
+        public bool FileExists(string path) => false;
+        public Task<string> ReadAllTextAsync(string path) => Task.FromResult("");
+        public Task WriteAllTextAsync(string path, string contents) => Task.CompletedTask;
+
         private static string Normalize(string p) => p.Replace('\\', '/').TrimEnd('/');
     }
 

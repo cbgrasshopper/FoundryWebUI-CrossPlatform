@@ -1,7 +1,4 @@
-using System.Diagnostics;
-
 using FoundryWebUI.Services;
-using FoundryWebUI.Services.Platform;
 
 namespace FoundryWebUI.Endpoints;
 
@@ -42,12 +39,11 @@ public static class StatusEndpoints
     }
 
     private static async Task<IResult> StartFoundry(
-        IConfiguration configuration,
-        ILogger<Program> logger,
+        FoundryProcessLauncher launcher,
         FoundryLocalService provider,
         CancellationToken cancellationToken)
     {
-        if (!FoundryExecutable.TryFind(configuration, out var exePath))
+        if (!launcher.TryFindExecutable(out var exePath))
         {
             return Results.NotFound(new
             {
@@ -58,59 +54,27 @@ public static class StatusEndpoints
             });
         }
 
-        try
+        var result = await launcher.StartServiceAsync(exePath, cancellationToken);
+        if (!result.Started)
         {
-            var psi = new ProcessStartInfo
-            {
-                FileName = exePath,
-                ArgumentList = { "service", "start" },
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-
-            using var proc = Process.Start(psi);
-            if (proc is null)
-            {
-                return Results.Json(new { error = "Failed to start 'foundry service start'." }, statusCode: 500);
-            }
-
-            using var startTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            startTimeout.CancelAfter(TimeSpan.FromSeconds(60));
-            await proc.WaitForExitAsync(startTimeout.Token);
-
-            var stdout = await proc.StandardOutput.ReadToEndAsync(cancellationToken);
-            var stderr = await proc.StandardError.ReadToEndAsync(cancellationToken);
-            logger.LogInformation(
-                "foundry service start exited {Code}. stdout: {Stdout} stderr: {Stderr}",
-                proc.ExitCode, stdout.Trim(), stderr.Trim());
-
-            var status = await provider.ReconnectAsync();
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
-            while (!status.IsAvailable && DateTimeOffset.UtcNow < deadline)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
-                status = await provider.GetStatusAsync();
-            }
-
-            return Results.Ok(new
-            {
-                started = proc.ExitCode == 0,
-                exitCode = proc.ExitCode,
-                stdout = stdout.Trim(),
-                stderr = stderr.Trim(),
-                status,
-            });
+            return Results.Json(new { error = result.Error }, statusCode: result.StatusCode);
         }
-        catch (OperationCanceledException)
+
+        var status = await provider.ReconnectAsync();
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (!status.IsAvailable && DateTimeOffset.UtcNow < deadline)
         {
-            return Results.Json(new { error = "Timed out waiting for 'foundry service start'." }, statusCode: 504);
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            status = await provider.GetStatusAsync();
         }
-        catch (Exception ex)
+
+        return Results.Ok(new
         {
-            logger.LogError(ex, "Failed to launch Foundry Local via {Path}", exePath);
-            return Results.Json(new { error = ex.Message }, statusCode: 500);
-        }
+            started = true,
+            exitCode = result.ExitCode,
+            stdout = result.Stdout,
+            stderr = result.Stderr,
+            status,
+        });
     }
 }

@@ -174,6 +174,8 @@ public sealed class Program
         builder.Services.AddSingleton<ModelDownloadService>();
         builder.Services.AddSingleton<ModelDeletionService>();
         builder.Services.AddSingleton<FoundryLocalService>();
+        builder.Services.AddSingleton<FoundryConfigService>();
+        builder.Services.AddSingleton<FoundryProcessLauncher>();
 
         builder.Services.AddSingleton<ApplicationVersion>();
         builder.Services.AddSingleton<ContextWindowLookup>();
